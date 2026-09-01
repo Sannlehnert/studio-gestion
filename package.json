@@ -1,0 +1,25 @@
+{
+  "name": "studio-gestion",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Sistema de gestión para clases de una profesora",
+  "workspaces": [
+    "apps/backend",
+    "apps/frontend"
+  ],
+  "scripts": {
+    "dev:backend": "npm run start:dev --workspace=apps/backend",
+    "build:backend": "npm run build --workspace=apps/backend",
+    "lint:backend": "npm run lint --workspace=apps/backend",
+    "typecheck:backend": "npm run typecheck --workspace=apps/backend",
+    "test:backend": "npm run test --workspace=apps/backend",
+    "test:e2e:backend": "npm run test:e2e --workspace=apps/backend",
+    "prisma:generate": "npm run prisma:generate --workspace=apps/backend",
+    "prisma:migrate": "npm run prisma:migrate --workspace=apps/backend",
+    "prisma:studio": "npm run prisma:studio --workspace=apps/backend"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "npm": ">=10.0.0"
+  }
+}

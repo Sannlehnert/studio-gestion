@@ -1,0 +1,227 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// --------- Enums ---------
+
+enum StudentAccessStatus {
+  PENDING
+  ACTIVATED
+  REVOKED
+}
+
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  EXCUSED
+}
+
+enum ClassSessionStatus {
+  SCHEDULED
+  CANCELLED
+  COMPLETED
+}
+
+enum RecoveryStatus {
+  PENDING
+  USED
+  EXPIRED
+  REVOKED
+}
+
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REFUNDED
+}
+
+// --------- Models ---------
+
+model Admin {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  passwordHash String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model Student {
+  id        String   @id @default(uuid())
+  fullName  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  subscriptions Subscription[]
+  enrollments   Enrollment[]
+  attendances   Attendance[]
+  recoveries    Recovery[]
+  accessTokens  StudentAccess[]
+}
+
+model StudentAccess {
+  id          String              @id @default(uuid())
+  studentId   String
+  tokenHash   String              @unique
+  status      StudentAccessStatus @default(PENDING)
+  expiresAt   DateTime
+  activatedAt DateTime?
+  revokedAt   DateTime?
+  createdAt   DateTime            @default(now())
+
+  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+}
+
+model Plan {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  classCount  Int      @default(8)
+  price       Decimal  @db.Decimal(10, 2)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  subscriptions Subscription[]
+}
+
+model Subscription {
+  id          String   @id @default(uuid())
+  studentId   String
+  planId      String
+  periodStart DateTime
+  periodEnd   DateTime
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  student     Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  plan        Plan         @relation(fields: [planId], references: [id])
+  payments    Payment[]
+  enrollments Enrollment[]
+  recoveries  Recovery[]
+
+  @@index([studentId, periodStart, periodEnd])
+  @@index([planId])
+}
+
+model Payment {
+  id             String        @id @default(uuid())
+  subscriptionId String
+  amount         Decimal       @db.Decimal(10, 2)
+  currency       String        @default("ARS")
+  status         PaymentStatus @default(PENDING)
+  paidAt         DateTime?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  subscription Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+
+  @@index([subscriptionId])
+}
+
+model Schedule {
+  id        String   @id @default(uuid())
+  dayOfWeek Int
+  startTime DateTime
+  endTime   DateTime
+  capacity  Int      @default(20)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  classSessions ClassSession[]
+}
+
+model ClassSession {
+  id         String             @id @default(uuid())
+  scheduleId String
+  startTime  DateTime
+  endTime    DateTime
+  capacity   Int
+  status     ClassSessionStatus @default(SCHEDULED)
+  createdAt  DateTime           @default(now())
+  updatedAt  DateTime           @updatedAt
+
+  schedule    Schedule     @relation(fields: [scheduleId], references: [id])
+  enrollments Enrollment[]
+  attendances Attendance[]
+  recoveries  Recovery[]   @relation("RecoverySession")
+
+  @@index([scheduleId])
+  @@index([startTime, endTime])
+}
+
+model Enrollment {
+  id             String   @id @default(uuid())
+  studentId      String
+  subscriptionId String
+  classSessionId String
+  enrolledAt     DateTime @default(now())
+
+  student      Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  subscription Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  classSession ClassSession @relation(fields: [classSessionId], references: [id], onDelete: Cascade)
+
+  @@unique([studentId, classSessionId])
+  @@index([subscriptionId])
+  @@index([classSessionId])
+}
+
+model Attendance {
+  id             String           @id @default(uuid())
+  studentId      String
+  classSessionId String
+  status         AttendanceStatus @default(PRESENT)
+  markedAt       DateTime         @default(now())
+  note           String?
+
+  recovery Recovery? @relation("RecoveryOriginalAbsence")
+
+  student      Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  classSession ClassSession @relation(fields: [classSessionId], references: [id], onDelete: Cascade)
+
+  @@unique([studentId, classSessionId])
+  @@index([classSessionId])
+}
+
+model Recovery {
+  id                String         @id @default(uuid())
+  studentId         String
+  subscriptionId    String
+  originalAbsenceId String
+  recoverySessionId String
+  status            RecoveryStatus @default(PENDING)
+  createdAt         DateTime       @default(now())
+  usedAt            DateTime?
+  expiresAt         DateTime?
+  note              String?
+
+  student         Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  subscription    Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  originalAbsence Attendance   @relation("RecoveryOriginalAbsence", fields: [originalAbsenceId], references: [id])
+  recoverySession ClassSession @relation("RecoverySession", fields: [recoverySessionId], references: [id])
+
+  @@unique([originalAbsenceId])
+  @@index([studentId, subscriptionId])
+  @@index([recoverySessionId])
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  actorId   String?
+  action    String
+  entity    String?
+  entityId  String?
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  @@index([actorId])
+  @@index([entity, entityId])
+  @@index([createdAt])
+}
