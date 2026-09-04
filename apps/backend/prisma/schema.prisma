@@ -225,3 +225,24 @@ model AuditLog {
   @@index([entity, entityId])
   @@index([createdAt])
 }
+
+enum SessionRole {
+  ADMIN
+  STUDENT
+}
+
+model Session {
+  id        String      @id @default(uuid())
+  userId    String
+  role      SessionRole
+  tokenHash String      @unique
+  expiresAt DateTime
+  revokedAt DateTime?
+  ip        String?
+  userAgent String?
+  createdAt DateTime    @default(now())
+  lastSeenAt DateTime   @default(now())
+
+  @@index([userId, role])
+  @@index([expiresAt])
+}

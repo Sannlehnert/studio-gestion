@@ -1,36 +1,25 @@
-import { ValidationPipe } from '@nestjs/common';
+import { Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
-import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { NestExpressApplication } from '@nestjs/platform-express';
 import { AppModule } from './app.module';
+import { configureApp } from './common/http/configure-app';
+import { getSettings } from './config/env.validation';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
-
-  // Global prefix
-  app.setGlobalPrefix('api/v1');
-
-  // Global validation pipe
-  app.useGlobalPipes(
-    new ValidationPipe({
-      whitelist: true,
-      forbidNonWhitelisted: true,
-      transform: true,
-    }),
-  );
-
-  // OpenAPI
-  const config = new DocumentBuilder()
-    .setTitle('Studio Gestión API')
-    .setDescription('API para gestión de clases')
-    .setVersion('0.1.0')
-    .addTag('health')
-    .build();
-  const document = SwaggerModule.createDocument(app, config);
-  SwaggerModule.setup('api/docs', app, document);
-
-  // Start server
-  const port = process.env.PORT ?? 3000;
-  await app.listen(port);
-  console.log(`Application is running on: http://localhost:${port}/api/v1`);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, {
+    bodyParser: false,
+  });
+  await configureApp(app);
+  app.enableShutdownHooks();
+  const settings = getSettings(app.get(ConfigService));
+  await app.listen(settings.port);
+  Logger.log('Backend iniciado en puerto ' + settings.port, 'Bootstrap');
 }
-bootstrap();
+void bootstrap().catch(() => {
+  Logger.error(
+    'No se pudo iniciar el backend; revisar configuración y disponibilidad de PostgreSQL',
+    'Bootstrap',
+  );
+  process.exitCode = 1;
+});
