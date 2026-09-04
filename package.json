@@ -16,6 +16,7 @@
     "test:e2e:backend": "npm run test:e2e --workspace=apps/backend",
     "test:migration:students": "npm run test:migration:students --workspace=apps/backend",
     "test:migration:commercial": "npm run test:migration:commercial --workspace=apps/backend",
+    "test:migration:scheduling": "npm run test:migration:scheduling --workspace=apps/backend",
     "prisma:generate": "npm run prisma:generate --workspace=apps/backend",
     "prisma:migrate": "npm run prisma:migrate --workspace=apps/backend",
     "prisma:studio": "npm run prisma:studio --workspace=apps/backend",

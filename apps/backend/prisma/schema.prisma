@@ -59,8 +59,9 @@ model Admin {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  paymentsCreated Payment[] @relation("PaymentCreatedBy")
-  paymentsVoided  Payment[] @relation("PaymentVoidedBy")
+  paymentsCreated   Payment[]      @relation("PaymentCreatedBy")
+  paymentsVoided    Payment[]      @relation("PaymentVoidedBy")
+  sessionsCancelled ClassSession[] @relation("ClassSessionCancelledBy")
 }
 
 model Student {
@@ -127,6 +128,7 @@ model Subscription {
 
   @@index([studentId, status, periodStart, periodEnd])
   @@index([planId])
+  @@unique([id, studentId])
 }
 
 model Payment {
@@ -156,51 +158,63 @@ model Payment {
 }
 
 model Schedule {
-  id        String   @id @default(uuid())
-  dayOfWeek Int
-  startTime DateTime
-  endTime   DateTime
-  capacity  Int      @default(20)
-  isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id              String   @id @default(uuid())
+  dayOfWeek       Int
+  startMinute     Int
+  endMinute       Int
+  defaultCapacity Int
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
   classSessions ClassSession[]
+  enrollments   Enrollment[]
+
+  @@index([dayOfWeek, startMinute, id])
 }
 
 model ClassSession {
-  id         String             @id @default(uuid())
-  scheduleId String
-  startTime  DateTime
-  endTime    DateTime
-  capacity   Int
-  status     ClassSessionStatus @default(SCHEDULED)
-  createdAt  DateTime           @default(now())
-  updatedAt  DateTime           @updatedAt
+  id                 String             @id @default(uuid())
+  scheduleId         String
+  occurrenceDate     DateTime           @db.Date
+  startAt            DateTime
+  endAt              DateTime
+  capacity           Int
+  status             ClassSessionStatus @default(SCHEDULED)
+  cancelledAt        DateTime?
+  cancelledByAdminId String?
+  cancellationReason String?            @db.VarChar(500)
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
 
-  schedule    Schedule     @relation(fields: [scheduleId], references: [id])
-  enrollments Enrollment[]
+  schedule    Schedule     @relation(fields: [scheduleId], references: [id], onDelete: Restrict)
+  cancelledBy Admin?       @relation("ClassSessionCancelledBy", fields: [cancelledByAdminId], references: [id], onDelete: Restrict)
   attendances Attendance[]
   recoveries  Recovery[]   @relation("RecoverySession")
 
-  @@index([scheduleId])
-  @@index([startTime, endTime])
+  @@unique([scheduleId, occurrenceDate])
+  @@index([occurrenceDate, status])
+  @@index([startAt, endAt])
+  @@index([cancelledByAdminId])
 }
 
 model Enrollment {
   id             String   @id @default(uuid())
   studentId      String
   subscriptionId String
-  classSessionId String
-  enrolledAt     DateTime @default(now())
+  scheduleId     String
+  validFrom      DateTime @db.Date
+  validUntil     DateTime @db.Date
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
-  student      Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  subscription Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
-  classSession ClassSession @relation(fields: [classSessionId], references: [id], onDelete: Cascade)
+  student      Student      @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  subscription Subscription @relation(fields: [subscriptionId, studentId], references: [id, studentId], onDelete: Restrict)
+  schedule     Schedule     @relation(fields: [scheduleId], references: [id], onDelete: Restrict)
 
-  @@unique([studentId, classSessionId])
-  @@index([subscriptionId])
-  @@index([classSessionId])
+  @@index([studentId, validFrom, validUntil])
+  @@index([subscriptionId, validFrom, validUntil])
+  @@index([scheduleId, validFrom, validUntil])
 }
 
 model Attendance {

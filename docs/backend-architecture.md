@@ -17,6 +17,10 @@ Cada módulo de negocio contiene controllers administrativos delgados, DTOs y un
 - PlansModule: catálogo mutable, precio referencial y activación.
 - SubscriptionsModule: contratos inmutables, snapshot, períodos, cancelación y resumen financiero.
 - PaymentsModule: registro idempotente, listados y anulación trazable.
+- BusinessTimeModule: conversión explícita entre calendario local configurado e instantes UTC, con rechazo de horas inexistentes o ambiguas.
+- SchedulesModule: recurrencias semanales, capacidad habitual y estado.
+- EnrollmentsModule: pertenencias temporales con reglas contractuales y cupos.
+- ClassSessionsModule: materialización idempotente, snapshots, excepciones, cancelación y consulta de alumnas esperadas.
 - HealthController: liveness con timestamp. El inicio de AppModule requiere conexión PostgreSQL, pero health no ejecuta una consulta nueva por request.
 
 La carpeta common contiene configuración HTTP compartida, DTO de error y filtro de excepciones. No es un contenedor de reglas de negocio.
@@ -37,7 +41,9 @@ SessionGuard consulta SessionService y luego la identidad del rol. AdminGuard y 
 
 SessionService usa findUnique porque tokenHash tiene UNIQUE; lastSeenAt se actualiza con un predicado de vigencia. No hay sliding expiration. Las transacciones de activación, emisión, revocación y login/logout incluyen sus eventos AuditLog; si una operación crítica falla, no queda un éxito parcial.
 
-La actualización condicional de StudentAccess serializa consumo y revocación sobre la misma fila bajo READ COMMITTED. Las altas de Subscription bloquean Student y Plan, y PostgreSQL aplica una exclusión temporal final. Registrar o anular Payment bloquea la Subscription para que el saldo no cambie entre lectura y escritura. No hace falta un lock distribuido en el monolito actual. Las operaciones futuras de cupos requieren un diseño propio.
+La actualización condicional de StudentAccess serializa consumo y revocación sobre la misma fila bajo READ COMMITTED. Las altas de Subscription bloquean Student y Plan, y PostgreSQL aplica una exclusión temporal final. Registrar o anular Payment bloquea la Subscription para que el saldo no cambie entre lectura y escritura.
+
+Las operaciones de cupo bloquean Schedule antes de leer Enrollment o cambiar una capacidad. La generación toma bloqueos compartidos de los Schedules activos y usa inserción con conflicto más UNIQUE(scheduleId, occurrenceDate). Así, edición, inscripción y generación observan un snapshot compatible sin necesitar locks distribuidos.
 
 ## Contratos y errores
 
@@ -49,7 +55,7 @@ DTOs con whitelist y forbidNonWhitelisted. IDs de accesos/alumnas recibidos por 
 
 Vitest para unitarios y pruebas HTTP; Supertest para flujos reales. El chequeo TypeScript incluye src, tests, seed y configuración de tests. Lint carga explícitamente oxlint.json, prohíbe any explícito y falla ante warnings.
 
-Los E2E exigen TEST_DATABASE_URL hacia una base *_test. El runner crea un schema e2e_ aleatorio, aplica migraciones, ejecuta las suites y elimina solo ese schema. No hay limpiezas globales de tablas de desarrollo. Los tests comerciales validan Decimal, snapshots, constraints, auditoría, autorización y carreras contra PostgreSQL real. El verificador de migración prueba instalación desde cero, upgrade desde Etapa 1 y rechazo seguro de histórico incompleto.
+Los E2E exigen TEST_DATABASE_URL hacia una base *_test. El runner crea un schema e2e_ aleatorio, aplica migraciones, ejecuta las suites y elimina solo ese schema. No hay limpiezas globales de tablas de desarrollo. Los tests validan snapshots, constraints, auditoría, autorización y carreras contra PostgreSQL real. Los verificadores de migración prueban instalación desde cero, upgrades incrementales y rechazo seguro de histórico incompleto.
 
 El script de seed exige credenciales explícitas, no tiene contraseña por defecto, no cambia un Admin existente y tolera dos ejecuciones concurrentes del alta inicial.
 

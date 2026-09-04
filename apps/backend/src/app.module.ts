@@ -10,6 +10,9 @@ import { StudentsModule } from './students/students.module';
 import { PlansModule } from './plans/plans.module';
 import { SubscriptionsModule } from './subscriptions/subscriptions.module';
 import { PaymentsModule } from './payments/payments.module';
+import { SchedulesModule } from './schedules/schedules.module';
+import { EnrollmentsModule } from './enrollments/enrollments.module';
+import { ClassSessionsModule } from './class-sessions/class-sessions.module';
 
 @Module({
   imports: [
@@ -26,6 +29,9 @@ import { PaymentsModule } from './payments/payments.module';
     PlansModule,
     SubscriptionsModule,
     PaymentsModule,
+    SchedulesModule,
+    EnrollmentsModule,
+    ClassSessionsModule,
   ],
   controllers: [HealthController],
 })

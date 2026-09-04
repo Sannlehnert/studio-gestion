@@ -16,7 +16,7 @@ Esta baseline describe el código existente. COMPLETE para Auth/Foundation no si
 | Helmet                | IMPLEMENTED                  | CSP, nosniff, anti-framing, no-referrer y demás headers; HSTS solo en producción.                                                    |
 | Rate limiting         | IMPLEMENTED                  | Categorías por IP, límites configurables, Retry-After, almacén en memoria.                                                           |
 | Payload               | IMPLEMENTED                  | JSON 16 KiB por defecto, sin compresión ni URL encoded.                                                                              |
-| IDOR/BOLA             | IMPLEMENTED                  | Identidad por sesión; Students y núcleo comercial sólo Admin, UUIDs validados y recursos anidados comprobados.                        |
+| IDOR/BOLA             | IMPLEMENTED                  | Identidad por sesión; Students, núcleo comercial y scheduling sólo Admin, UUIDs validados y relaciones cruzadas comprobadas.          |
 | SQL injection         | IMPLEMENTED en Auth          | Prisma parametrizado. El único identificador SQL dinámico del runner de tests se genera internamente y se acota a un schema aislado. |
 | Mass assignment       | IMPLEMENTED                  | DTOs estrictos y persistencia explícita.                                                                                             |
 | Errores/logs          | IMPLEMENTED / PARTIAL        | Sin stacks, tokens ni bodies en respuestas o logs de error; falta telemetría operativa de seguridad.                                 |
@@ -75,5 +75,7 @@ No hay borrado físico de Student ni del núcleo comercial por API. `isActive=fa
 Los DTOs no aceptan IDs, estados, moneda ni totales calculados fuera de cada caso de uso. Los servicios derivan snapshots, currency y saldos. Los precios/importes llegan como strings decimales acotados. PostgreSQL repite invariantes críticas con CHECK, FK, UNIQUE y exclusión temporal.
 
 Subscription concurrentes se serializan por Student y terminan protegidas por `Subscription_no_active_overlap`. Payment concurrentes se serializan por Subscription antes de calcular saldo; el sobrepago se rechaza. `Idempotency-Key` UUID v4 hace seguro el replay de un registro idéntico y rechaza reutilización con otro payload. AuditLog no guarda esa clave.
+
+Scheduling no acepta IDs internos, estado, capacidad ni timestamps fuera del DTO específico de cada caso de uso. La FK compuesta impide asignar a una Student una Subscription ajena incluso fuera del servicio. Los cupos se serializan por Schedule; PostgreSQL rechaza Enrollment solapados y clases duplicadas. La generación sólo usa Schedules activos y la cancelación exige Admin, motivo y auditoría. Las horas recurrentes nunca dependen del reloj o timezone del navegador.
 
 Auth, Students y operaciones comerciales escriben auditoría en la misma transacción sin secretos. La retención y purga de sesiones, metadatos de red y AuditLog requiere una política explícita y aún no está implementada. Modelos de etapas futuras conservan algunas cascadas que deben revisarse antes de exponer borrado operativo.

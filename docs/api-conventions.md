@@ -38,6 +38,26 @@ Prefijo /api/v1. Los endpoints usan DTOs estrictos y OpenAPI del backend; no dup
 | GET /api/v1/admin/payments                                     | ADMIN                               | 200, lista pagos y anulaciones                         |
 | GET /api/v1/admin/payments/:id                                 | ADMIN                               | 200, detalle trazable                                  |
 | POST /api/v1/admin/payments/:id/void                           | ADMIN                               | 200, anula con motivo e idempotencia                   |
+| POST /api/v1/admin/schedules                                   | ADMIN                               | 201, crea recurrencia activa                           |
+| GET /api/v1/admin/schedules                                    | ADMIN                               | 200, lista por estado/día                              |
+| GET /api/v1/admin/schedules/:id                                | ADMIN                               | 200, detalle                                           |
+| PATCH /api/v1/admin/schedules/:id                              | ADMIN                               | 200, edita futuras generaciones                        |
+| POST /api/v1/admin/schedules/:id/activate                      | ADMIN                               | 200, activa idempotentemente                           |
+| POST /api/v1/admin/schedules/:id/deactivate                    | ADMIN                               | 200, desactiva idempotentemente                        |
+| POST /api/v1/admin/enrollments                                 | ADMIN                               | 201, crea pertenencia temporal                         |
+| GET /api/v1/admin/enrollments/:id                              | ADMIN                               | 200, detalle histórico                                 |
+| POST /api/v1/admin/enrollments/:id/end                         | ADMIN                               | 200, acorta la vigencia                                |
+| POST /api/v1/admin/enrollments/:id/change-schedule             | ADMIN                               | 200, cierra el anterior y crea el nuevo                |
+| GET /api/v1/admin/students/:studentId/enrollments              | ADMIN                               | 200, inscripciones de la alumna                        |
+| GET /api/v1/admin/subscriptions/:subscriptionId/enrollments    | ADMIN                               | 200, inscripciones del contrato                        |
+| GET /api/v1/admin/schedules/:scheduleId/enrollments            | ADMIN                               | 200, inscripciones del horario                         |
+| POST /api/v1/admin/class-sessions/generate                     | ADMIN                               | 200, genera un rango idempotentemente                  |
+| GET /api/v1/admin/class-sessions                               | ADMIN                               | 200, clases paginadas y filtradas                      |
+| GET /api/v1/admin/class-sessions/:id                           | ADMIN                               | 200, snapshot de la clase                              |
+| PATCH /api/v1/admin/class-sessions/:id/capacity                | ADMIN                               | 200, excepción de capacidad                            |
+| PATCH /api/v1/admin/class-sessions/:id/time                    | ADMIN                               | 200, excepción horaria                                 |
+| POST /api/v1/admin/class-sessions/:id/cancel                   | ADMIN                               | 200, cancela idempotentemente con motivo               |
+| GET /api/v1/admin/class-sessions/:id/expected-students         | ADMIN                               | 200, roster derivado para Attendance                   |
 
 Swagger de desarrollo: /api/docs; JSON: /api/docs-json. Deshabilitados en producción.
 
@@ -51,6 +71,9 @@ Swagger de desarrollo: /api/docs; JSON: /api/docs-json. Deshabilitados en produc
 - Los IDs en params se validan como UUID. Un ID no confiere autorización; la revocación comprueba acceso y alumna juntos.
 - Revocación y logout reciben un body vacío, si se envía body. No hay método GET con operaciones administrativas.
 - Los clientes de navegador usan credentials: include. Las operaciones mutables deben tener un Origin permitido; se admite Referer válido solo si falta Origin. Clientes CLI deben enviar Origin explícitamente.
+- Schedule recibe día ISO 1–7, horas `HH:mm` y capacidad 1–1000. No recibe minutos internos, IDs, estado ni timestamps.
+- Enrollment recibe IDs de Student/Subscription/Schedule y fechas locales `YYYY-MM-DD`; `validUntil` es exclusivo. No existe PATCH genérico.
+- La generación admite un rango local inclusivo de hasta 366 días. Las excepciones horarias reciben ISO 8601 con offset o `Z`; cancelar exige motivo.
 
 ## Respuestas y errores
 
@@ -74,7 +97,7 @@ message puede ser una cadena o una lista de errores de validación. Nunca incluy
 | 401    | Sesión, credenciales o token de acceso inválidos                     |
 | 403    | Rol insuficiente, Origin no permitido o CSRF                         |
 | 404    | Recurso inexistente o acceso que no corresponde a la alumna indicada |
-| 409    | Intento de revocar un enlace ya consumido                            |
+| 409    | Conflicto de estado, período, relación, solapamiento o cupo           |
 | 413    | Body excede el límite                                                |
 | 415    | Tipo de body, compresión o charset no admitido                       |
 | 429    | Límite de solicitudes; incluye Retry-After                           |
@@ -82,16 +105,16 @@ message puede ser una cadena o una lista de errores de validación. Nunca incluy
 
 ## Repetición y concurrencia
 
-Logout y revocación de un pendiente ya revocado son idempotentes. Una segunda activación responde 401 y no crea otra sesión. Crear un acceso o iniciar otro login puede crear otro registro: no se promete idempotencia de esas operaciones. No reintentar automáticamente la emisión de enlaces suponiendo que devuelve el mismo secreto.
+Logout y revocación de un pendiente ya revocado son idempotentes. También lo son activar/desactivar Schedule, cancelar ClassSession, finalizar con el mismo extremo, repetir el mismo cambio de horario y generar el mismo rango. Una segunda activación de acceso responde 401 y no crea otra sesión. Crear un acceso o iniciar otro login puede crear otro registro: no se promete idempotencia de esas operaciones. No reintentar automáticamente la emisión de enlaces suponiendo que devuelve el mismo secreto.
 
 Las fechas de revocación no se reemplazan al repetir el pedido. Los eventos AuditLog de éxito se escriben en la misma transacción que el cambio.
 
 ## Fechas, dinero y futuras listas
 
-Fechas de API: ISO 8601 con zona; backend como autoridad temporal. BUSINESS_TIMEZONE se valida centralmente; las reglas de calendarios recurrentes todavía no están implementadas.
+Los instantes contractuales y excepciones usan ISO 8601 con zona; el backend es la autoridad temporal. Las recurrencias usan fecha local `YYYY-MM-DD` y hora local `HH:mm`, interpretadas sólo con BUSINESS_TIMEZONE. ClassSession devuelve instantes UTC y conserva `occurrenceDate` como identidad civil. Las horas locales inexistentes o repetidas por cambios de offset se rechazan.
 
 Dinero persistido como Decimal(10,2), nunca Float, y serializado como string con dos decimales. Requests monetarios también exigen strings para rechazar redondeos JSON implícitos. La moneda soportada en el MVP es ARS y Payment la deriva de Subscription.
 
 El listado Students usa página/offset con `page` default 1 y máximo 100000, `limit` default 20 y máximo 100. Devuelve `{ items, meta: { page, limit, total, totalPages } }` y ordena por nombre e ID. El filtro `status` acepta `active`, `inactive` y `all`; `search` realiza coincidencia parcial sin distinguir mayúsculas. Ver [Students](students.md).
 
-Plans, Subscriptions y Payments reutilizan la misma forma paginada. Plans filtra `active|inactive|all` y busca por nombre. Subscriptions filtra `active|expired|cancelled|all`. Payments filtra `confirmed|voided|all`. Fechas de entrada requieren ISO 8601 con zona; periodEnd es exclusivo.
+Plans, Subscriptions, Payments y scheduling reutilizan la misma forma paginada. Plans filtra `active|inactive|all`; Subscriptions `active|expired|cancelled|all`; Payments `confirmed|voided|all`; Schedules `active|inactive|all`; Enrollment `upcoming|active|expired|all`; ClassSession `scheduled|cancelled|completed|all`. Ver [scheduling](scheduling.md).

@@ -20,6 +20,7 @@
     "test:e2e": "node test/run-e2e.mjs",
     "test:migration:students": "node test/verify-students-migration.mjs",
     "test:migration:commercial": "node test/verify-commercial-migration.mjs",
+    "test:migration:scheduling": "node test/verify-scheduling-migration.mjs",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:studio": "prisma studio",

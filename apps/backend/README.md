@@ -10,9 +10,13 @@ API NestJS de Studio Gestión. La instalación, Docker, variables de entorno, Pr
 - src/auth/: login, activación, sesiones, cookies y guards.
 - src/admin/controllers/admin-students.controller.ts: emisión y revocación de accesos, sin CRUD de alumnas.
 - src/students/: gestión administrativa, estado, paginación, auditoría y tests unitarios.
+- src/schedules/: recurrencias semanales y capacidad habitual.
+- src/enrollments/: pertenencia temporal de una alumna a un horario y su contrato.
+- src/class-sessions/: materialización idempotente, excepciones y cancelaciones.
+- src/time/: frontera testeable entre fechas locales del negocio e instantes UTC.
 - prisma/schema.prisma y prisma/migrations/: persistencia.
 - test/run-e2e.mjs: pruebas aisladas contra PostgreSQL.
 
-Contratos y decisiones: [API](../../docs/api-conventions.md), [Auth](../../docs/authentication.md), [Students](../../docs/students.md), [validación de Etapa 1](../../docs/stage-1-validation.md) y [seguridad](../../docs/security.md).
+Contratos y decisiones: [API](../../docs/api-conventions.md), [Auth](../../docs/authentication.md), [Students](../../docs/students.md), [scheduling](../../docs/scheduling.md) y [seguridad](../../docs/security.md).
 
-StudentsModule está implementado. Frontend y los demás módulos de negocio no están implementados.
+Auth, Students, núcleo comercial y scheduling están implementados. Attendance, Recoveries, QR y Frontend no están implementados.
