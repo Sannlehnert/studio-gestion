@@ -4,16 +4,16 @@ Studio Gestión es un sistema real para una profesora que alquila una sala y adm
 
 ## Alcance y estado
 
-- IMPLEMENTED: foundation NestJS/PostgreSQL/Prisma, health, OpenAPI, autenticación Admin, activación Student, sesiones opacas, revocación individual de accesos pendientes, auditoría de operaciones Auth y protección HTTP. La evidencia de cierre está en [validación de Fase 0](phase-0-validation.md).
-- PLANNED: StudentsModule de negocio, desactivación/reactivación, planes, suscripciones, pagos, programaciones, clases, cupos, asistencias, ausencias y recuperaciones.
-- NOT STARTED: frontend. La existencia de StudentModule singular solo aporta una ruta de comprobación de permisos; no equivale a StudentsModule.
+- IMPLEMENTED: foundation, Auth y StudentsModule con alta, consulta, edición, listado, búsqueda, desactivación/reactivación, auditoría y protección de credenciales. La evidencia de foundation está en [validación de Fase 0](phase-0-validation.md) y el comportamiento Student en [Students](students.md).
+- PLANNED: planes, suscripciones, pagos, programaciones, clases, cupos, asistencias, ausencias y recuperaciones.
+- NOT STARTED: frontend. StudentModule singular aporta la ruta de permisos de alumna; StudentsModule contiene su gestión administrativa.
 - Fuera del MVP: múltiples profesores/salas/sedes, reservas, WhatsApp, pagos online, notificaciones y SaaS.
 
 ## Usuarios
 
 Admin se autentica con email y contraseña. Administrará alumnas y operaciones de negocio cuando existan esos módulos. Student no requiere email, usuario ni contraseña: recibe un enlace temporal, lo intercambia una sola vez por una cookie de sesión y opera con su identidad persistida. Una alumna no podrá modificar asistencias, pagos, planes ni períodos.
 
-Actualmente Admin solo tiene login, comprobación de permisos y gestión de accesos. Student solo tiene activación, identidad, comprobación de permisos y logout. No hay operaciones de negocio implementadas por la mera presencia de sus modelos.
+Actualmente Admin tiene login, comprobación de permisos, gestión de alumnas y de sus accesos. Student tiene activación, identidad, comprobación de permisos y logout. No hay otros módulos de negocio implementados por la mera presencia de sus modelos.
 
 ## Reglas del producto que deben conservarse
 
@@ -38,7 +38,7 @@ No introducir microservicios, CQRS, event sourcing ni repositorios ceremoniales.
 ## Roadmap
 
 - Fase 0: saneamiento, cierre de Auth y seguridad, documentación y validación.
-- Etapa 1: Students, empezando por reglas de activación/desactivación, historial y migración de Student.isActive.
-- Etapas posteriores: módulos de negocio, frontend y QR según sus respectivos prompts.
+- Etapa 1: Students — IMPLEMENTED, con activación/desactivación, historial y `Student.isActive`.
+- Próxima: Plans, Subscriptions y Payments. Después, los demás módulos de negocio, frontend y QR según sus respectivos prompts.
 
 No avanzar de etapa automáticamente. Cualquier etapa necesita lint, typecheck, tests pertinentes y build en verde. No borrar tests fallidos ni modificar producción solo para satisfacer mocks.

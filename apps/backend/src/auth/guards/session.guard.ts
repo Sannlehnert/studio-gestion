@@ -46,11 +46,11 @@ export class SessionGuard implements CanActivate {
       email = admin.email;
     } else if (session.role === 'STUDENT') {
       const student = await this.prisma.student.findUnique({
-        where: { id: session.userId },
+        where: { id: session.userId, isActive: true },
         select: { id: true, fullName: true },
       });
       if (!student) {
-        throw new UnauthorizedException('Usuario no encontrado');
+        throw new UnauthorizedException('Usuario no disponible');
       }
       fullName = student.fullName;
     }

@@ -16,7 +16,7 @@ Esta baseline describe el código existente. COMPLETE para Auth/Foundation no si
 | Helmet                | IMPLEMENTED                  | CSP, nosniff, anti-framing, no-referrer y demás headers; HSTS solo en producción.                                                    |
 | Rate limiting         | IMPLEMENTED                  | Categorías por IP, límites configurables, Retry-After, almacén en memoria.                                                           |
 | Payload               | IMPLEMENTED                  | JSON 16 KiB por defecto, sin compresión ni URL encoded.                                                                              |
-| IDOR/BOLA             | IMPLEMENTED en Auth          | Identidad por sesión; revocación acotada al acceso y a la alumna. Casos de negocio PLANNED.                                          |
+| IDOR/BOLA             | IMPLEMENTED en Auth/Students | Identidad por sesión; Students solo Admin, IDs validados y accesos acotados a la alumna.                                             |
 | SQL injection         | IMPLEMENTED en Auth          | Prisma parametrizado. El único identificador SQL dinámico del runner de tests se genera internamente y se acota a un schema aislado. |
 | Mass assignment       | IMPLEMENTED                  | DTOs estrictos y persistencia explícita.                                                                                             |
 | Errores/logs          | IMPLEMENTED / PARTIAL        | Sin stacks, tokens ni bodies en respuestas o logs de error; falta telemetría operativa de seguridad.                                 |
@@ -70,4 +70,4 @@ Ver el resultado real de auditoría y pruebas en [validación](phase-0-validatio
 
 ## Datos e historial
 
-No hay borrados físicos de negocio en esta fase. El schema aún contiene cascadas y carece de Student.isActive; revisar antes de Students. Auditoría de Auth transaccional, sin secretos. La retención y purga de sesiones, metadatos de red y AuditLog requiere una política explícita y aún no está implementada.
+No hay borrado físico de Student por API. `isActive=false` revoca accesos pendientes y sesiones Student en la misma transacción; SessionGuard también exige identidad activa. Reactivar no revive credenciales. Las cascadas del schema continúan existiendo y deben revisarse antes de cualquier herramienta de borrado operativo. Auth y Students escriben auditoría transaccional sin secretos. La retención y purga de sesiones, metadatos de red y AuditLog requiere una política explícita y aún no está implementada.

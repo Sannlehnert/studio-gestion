@@ -6,7 +6,7 @@ Sistema web para que una profesora gestione sus clases y alumnas, con énfasis e
 
 - Backend Foundation: COMPLETE
 - Backend Auth/Security Foundation: COMPLETE
-- Students: NOT STARTED
+- Students: COMPLETE
 - Frontend: NOT STARTED
 
 El cierre y sus límites están en [validación de Fase 0](docs/phase-0-validation.md). La existencia de modelos Prisma de negocio no implica que tengan endpoints implementados.
@@ -96,9 +96,10 @@ Comprobaciones independientes:
 Para E2E, copiar apps/backend/.env.test.example a apps/backend/.env.test y establecer una contraseña exclusiva de pruebas en ambos valores correspondientes. TEST_DATABASE_URL debe terminar en la base studio_gestion_test; jamás usar desarrollo/producción como fallback.
 
     docker compose --env-file apps/backend/.env.test -f docker-compose.test.yml up -d --wait
+    npm run test:migration:students
     npm run test:e2e:backend
 
-El contenedor usa PostgreSQL 16, puerto local 55432 y datos efímeros. El runner crea un schema aleatorio por ejecución, aplica las migraciones existentes, corre Admin y Student y elimina solo ese schema. Las suites no borran tablas completas de otra base.
+El contenedor usa PostgreSQL 16, puerto local 55432 y datos efímeros. La primera comprobación migra un schema desde Fase 0 y verifica que una alumna previa se preserve activa. El runner E2E crea otro schema aleatorio, aplica todas las migraciones, corre Auth y Students y elimina solo ese schema. Las suites no borran tablas completas de otra base.
 
 Para detener únicamente la base de pruebas:
 
@@ -113,7 +114,9 @@ No se necesita eliminar contenedores de desarrollo por un aviso de servicios aje
 - [Arquitectura](docs/backend-architecture.md)
 - [Convenciones de API](docs/api-conventions.md)
 - [Autenticación y sesiones](docs/authentication.md)
+- [Gestión de alumnas](docs/students.md)
+- [Validación de Etapa 1](docs/stage-1-validation.md)
 - [Baseline de seguridad](docs/security.md)
 - [Auditoría y validación de Fase 0](docs/phase-0-validation.md)
 
-La próxima etapa es Students. No se inició en esta fase.
+La próxima etapa prevista es Plans + Subscriptions + Payments. No se inició en esta etapa.

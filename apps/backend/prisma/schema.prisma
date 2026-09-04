@@ -54,6 +54,7 @@ model Admin {
 model Student {
   id        String   @id @default(uuid())
   fullName  String
+  isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

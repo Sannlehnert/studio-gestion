@@ -36,6 +36,7 @@ export class AdminStudentsController {
   @ApiParam({ name: 'studentId', format: 'uuid' })
   @ApiResponse({ status: 201, type: AccessResponseDto })
   @ApiResponse({ status: 404, description: 'Alumna no encontrada' })
+  @ApiResponse({ status: 409, description: 'Alumna desactivada' })
   async createAccess(
     @Param('studentId', ParseUUIDPipe) studentId: string,
     @Body() dto: CreateStudentAccessDto,

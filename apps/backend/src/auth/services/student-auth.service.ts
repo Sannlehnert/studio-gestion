@@ -5,7 +5,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { SessionRole, StudentAccessStatus } from '@prisma/client';
+import { Prisma, SessionRole, StudentAccessStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma.service';
 import { getSettings } from '../../config/env.validation';
 import { TokenService } from './token.service';
@@ -25,11 +25,9 @@ export class StudentAuthService {
     const tokenHash = this.tokenService.hashToken(plainToken);
     const expiresAt = new Date(Date.now() + expiresInDays * 86_400_000);
     const access = await this.prisma.$transaction(async (tx) => {
-      const student = await tx.student.findUnique({
-        where: { id: studentId },
-        select: { id: true },
-      });
+      const student = await this.lockStudent(tx, studentId);
       if (!student) throw new NotFoundException('Alumna no encontrada');
+      if (!student.isActive) throw new ConflictException('Alumna desactivada');
       const created = await tx.studentAccess.create({
         data: {
           studentId,
@@ -67,7 +65,6 @@ export class StudentAuthService {
     return this.prisma.$transaction(async (tx) => {
       const access = await tx.studentAccess.findUnique({
         where: { tokenHash },
-        include: { student: { select: { id: true, fullName: true } } },
       });
       const now = new Date();
       if (
@@ -79,6 +76,9 @@ export class StudentAuthService {
       ) {
         throw new UnauthorizedException('Acceso inválido');
       }
+      const student = await this.lockStudent(tx, access.studentId);
+      if (!student?.isActive)
+        throw new UnauthorizedException('Acceso inválido');
       // PostgreSQL rechecks this predicate after waiting for a concurrent row update.
       const claimed = await tx.studentAccess.updateMany({
         where: {
@@ -111,7 +111,7 @@ export class StudentAuthService {
         },
       });
       return {
-        student: access.student,
+        student: { id: student.id, fullName: student.fullName },
         sessionToken: token,
         expiresAt: session.expiresAt,
       };
@@ -156,5 +156,17 @@ export class StudentAuthService {
       // Revoking an activation link must not pretend to revoke an established session.
       throw new ConflictException('El acceso ya fue activado');
     });
+  }
+
+  private async lockStudent(tx: Prisma.TransactionClient, studentId: string) {
+    const rows = await tx.$queryRaw<
+      Array<{ id: string; fullName: string; isActive: boolean }>
+    >(Prisma.sql`
+      SELECT "id", "fullName", "isActive"
+      FROM "Student"
+      WHERE "id" = ${studentId}
+      FOR UPDATE
+    `);
+    return rows[0] ?? null;
   }
 }

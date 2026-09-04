@@ -15,7 +15,11 @@ import { validate } from '../../config/env.validation';
 
 describe('StudentAuthService', () => {
   const now = new Date('2026-09-02T15:00:00Z');
-  const student = { id: 'student-1', fullName: 'Alumna de prueba' };
+  const student = {
+    id: 'student-1',
+    fullName: 'Alumna de prueba',
+    isActive: true,
+  };
   const access = {
     id: 'access-1',
     studentId: student.id,
@@ -28,6 +32,7 @@ describe('StudentAuthService', () => {
     student,
   };
   const tx = {
+    $queryRaw: vi.fn(),
     student: { findUnique: vi.fn() },
     studentAccess: {
       create: vi.fn(),
@@ -52,6 +57,7 @@ describe('StudentAuthService', () => {
     vi.setSystemTime(now);
     vi.clearAllMocks();
     tx.student.findUnique.mockResolvedValue(student);
+    tx.$queryRaw.mockResolvedValue([student]);
     tx.studentAccess.create.mockResolvedValue(access);
     tx.studentAccess.findUnique.mockResolvedValue(access);
     tx.studentAccess.updateMany.mockResolvedValue({ count: 1 });
@@ -99,15 +105,25 @@ describe('StudentAuthService', () => {
     );
   });
   it('returns 404 for a missing student without creating an access', async () => {
-    tx.student.findUnique.mockResolvedValue(null);
+    tx.$queryRaw.mockResolvedValue([]);
     await expect(service.createAccess('missing', 'admin-1')).rejects.toThrow(
       NotFoundException,
     );
     expect(tx.studentAccess.create).not.toHaveBeenCalled();
   });
+  it('rejects access generation for an inactive student', async () => {
+    tx.$queryRaw.mockResolvedValue([{ ...student, isActive: false }]);
+    await expect(service.createAccess(student.id, 'admin-1')).rejects.toThrow(
+      ConflictException,
+    );
+    expect(tx.studentAccess.create).not.toHaveBeenCalled();
+  });
   it('claims the token before creating a session on the same transaction', async () => {
     const result = await service.activate('token');
-    expect(result.student).toEqual(student);
+    expect(result.student).toEqual({
+      id: student.id,
+      fullName: student.fullName,
+    });
     expect(result.sessionToken).toBe('session-token');
     expect(tx.studentAccess.updateMany).toHaveBeenCalledWith({
       where: {
@@ -152,6 +168,15 @@ describe('StudentAuthService', () => {
     await expect(service.activate('token')).rejects.toThrow(
       UnauthorizedException,
     );
+    expect(sessions.createSession).not.toHaveBeenCalled();
+  });
+
+  it('rejects activation if the student became inactive after issuance', async () => {
+    tx.$queryRaw.mockResolvedValue([{ ...student, isActive: false }]);
+    await expect(service.activate('token')).rejects.toThrow(
+      UnauthorizedException,
+    );
+    expect(tx.studentAccess.updateMany).not.toHaveBeenCalled();
     expect(sessions.createSession).not.toHaveBeenCalled();
   });
 

@@ -37,6 +37,7 @@ describe('role guards', () => {
     prisma.student.findUnique.mockResolvedValue({
       id: 'student-1',
       fullName: 'Alumna de prueba',
+      isActive: true,
     });
     const module = await Test.createTestingModule({
       providers: [
@@ -92,5 +93,21 @@ describe('role guards', () => {
     await expect(adminGuard.canActivate(context())).rejects.toThrow(
       UnauthorizedException,
     );
+  });
+  it('rejects an inactive student even when the session is otherwise valid', async () => {
+    sessions.validateSession.mockResolvedValue({
+      id: 'session-1',
+      userId: 'student-1',
+      role: 'STUDENT',
+      expiresAt: new Date(Date.now() + 60_000),
+    });
+    prisma.student.findUnique.mockResolvedValue(null);
+    await expect(studentGuard.canActivate(context())).rejects.toThrow(
+      UnauthorizedException,
+    );
+    expect(prisma.student.findUnique).toHaveBeenCalledWith({
+      where: { id: 'student-1', isActive: true },
+      select: { id: true, fullName: true },
+    });
   });
 });

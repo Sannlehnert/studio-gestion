@@ -1,24 +1,24 @@
 # Modelo de dominio
 
-Fuente: apps/backend/prisma/schema.prisma y sus dos migraciones existentes. Tener una tabla implementada no significa tener su módulo de negocio.
+Fuente: apps/backend/prisma/schema.prisma y sus tres migraciones existentes. Tener una tabla implementada no significa tener su módulo de negocio.
 
 ## Modelos actuales
 
-| Modelo        | Responsabilidad y relaciones                                                                              | Estado del comportamiento                                                               |
-| ------------- | --------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
-| Admin         | Identidad administrativa; email único y passwordHash.                                                     | IMPLEMENTED: seed explícito, login y guard.                                             |
-| Student       | Identidad de alumna; relaciones con suscripciones, inscripciones, asistencias, recuperaciones y accesos.  | IMPLEMENTED: lectura mínima para Auth. PLANNED: CRUD, isActive y reactivación.          |
-| StudentAccess | Pertenece a Student. tokenHash único, estado, expiración, activación y revocación.                        | IMPLEMENTED: emitir, consumir una vez y revocar un pendiente.                           |
-| Plan          | Modalidad con classCount, precio Decimal(10,2), nombre e isActive; tiene suscripciones.                   | PLANNED: módulo y validaciones de negocio. El default 8 no es un límite de modalidades. |
-| Subscription  | Vincula Student y Plan; periodStart/periodEnd le pertenecen. Tiene pagos, inscripciones y recuperaciones. | PLANNED: contratación, consumo, vencimiento y saldo derivado.                           |
-| Payment       | Pertenece a Subscription; importe Decimal(10,2), moneda, estado y paidAt.                                 | PLANNED: registro, consistencia monetaria e idempotencia.                               |
-| Schedule      | Recurrencia con día, horas, capacidad habitual e isActive; agrupa ClassSession.                           | PLANNED: validaciones y materialización de clases.                                      |
-| ClassSession  | Clase concreta de Schedule, inicio/fin, capacidad efectiva y estado.                                      | PLANNED: administración, cancelación y concurrencia de cupos.                           |
-| Enrollment    | Vincula Student, Subscription y ClassSession; conserva enrolledAt.                                        | PLANNED: inscripción y sus invariantes cruzadas.                                        |
-| Attendance    | Vincula Student y ClassSession; estado, markedAt y nota.                                                  | PLANNED: registro, ausencias automáticas y correcciones Admin.                          |
-| Recovery      | Vincula Student, Subscription, ausencia original y sesión destino.                                        | PLANNED: autorización, uso, vencimiento y revocación.                                   |
-| Session       | userId + rol, tokenHash único, expiración, revocación y lastSeenAt.                                       | IMPLEMENTED: creación, validación y logout.                                             |
-| AuditLog      | actorId opcional, acción, entidad, ID, metadata JSON y fecha.                                             | IMPLEMENTED: eventos Auth. PLANNED: consulta administrativa y auditoría de negocio.     |
+| Modelo        | Responsabilidad y relaciones                                                                              | Estado del comportamiento                                                                         |
+| ------------- | --------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| Admin         | Identidad administrativa; email único y passwordHash.                                                     | IMPLEMENTED: seed explícito, login y guard.                                                       |
+| Student       | Identidad de alumna con estado activo y relaciones históricas.                                            | IMPLEMENTED: CRUD administrativo sin borrado, búsqueda, paginación, desactivación y reactivación. |
+| StudentAccess | Pertenece a Student. tokenHash único, estado, expiración, activación y revocación.                        | IMPLEMENTED: emitir, consumir una vez y revocar un pendiente.                                     |
+| Plan          | Modalidad con classCount, precio Decimal(10,2), nombre e isActive; tiene suscripciones.                   | PLANNED: módulo y validaciones de negocio. El default 8 no es un límite de modalidades.           |
+| Subscription  | Vincula Student y Plan; periodStart/periodEnd le pertenecen. Tiene pagos, inscripciones y recuperaciones. | PLANNED: contratación, consumo, vencimiento y saldo derivado.                                     |
+| Payment       | Pertenece a Subscription; importe Decimal(10,2), moneda, estado y paidAt.                                 | PLANNED: registro, consistencia monetaria e idempotencia.                                         |
+| Schedule      | Recurrencia con día, horas, capacidad habitual e isActive; agrupa ClassSession.                           | PLANNED: validaciones y materialización de clases.                                                |
+| ClassSession  | Clase concreta de Schedule, inicio/fin, capacidad efectiva y estado.                                      | PLANNED: administración, cancelación y concurrencia de cupos.                                     |
+| Enrollment    | Vincula Student, Subscription y ClassSession; conserva enrolledAt.                                        | PLANNED: inscripción y sus invariantes cruzadas.                                                  |
+| Attendance    | Vincula Student y ClassSession; estado, markedAt y nota.                                                  | PLANNED: registro, ausencias automáticas y correcciones Admin.                                    |
+| Recovery      | Vincula Student, Subscription, ausencia original y sesión destino.                                        | PLANNED: autorización, uso, vencimiento y revocación.                                             |
+| Session       | userId + rol, tokenHash único, expiración, revocación y lastSeenAt.                                       | IMPLEMENTED: creación, validación y logout.                                                       |
+| AuditLog      | actorId opcional, acción, entidad, ID, metadata JSON y fecha.                                             | IMPLEMENTED: eventos Auth. PLANNED: consulta administrativa y auditoría de negocio.               |
 
 ## Invariantes IMPLEMENTED
 
@@ -32,6 +32,8 @@ Fuente: apps/backend/prisma/schema.prisma y sus dos migraciones existentes. Tene
 - Revocar un acceso exige que corresponda a la alumna indicada. Repetir la revocación no reemplaza su fecha ni genera otro evento.
 - Los estados y timestamps de StudentAccess se mantienen mediante servicios; no existen CHECKs de coherencia entre esos campos.
 - Es válido tener varios enlaces pendientes de una alumna. Emitir otro no invalida los anteriores. Revocarlos individualmente conserva semántica e historial.
+- Student.isActive es la fuente de verdad operativa. Desactivar revoca sesiones Student y accesos pendientes en una transacción, sin borrar relaciones históricas. Reactivar no restaura credenciales anteriores.
+- No existe borrado físico de Student por API. Las mutaciones de una misma Student se serializan con bloqueo de fila y generan auditoría solo cuando cambia el estado.
 
 ## Fuentes de verdad
 
@@ -48,11 +50,10 @@ Schedule es fuente de recurrencia y capacidad habitual; ClassSession tendrá la 
 - Implementar consumo, ausencias, clase cancelada, recuperación dentro del período y saldo reconciliable.
 - Proteger cupos con una estrategia transaccional probada contra PostgreSQL.
 - Revisar qué hacer ante una recuperación revocada cuando ya existe UNIQUE(originalAbsenceId); no sobrescribir historia sin una regla.
-- Varias relaciones tienen ON DELETE CASCADE, incluidas relaciones desde Student y Subscription. No agregar borrados físicos de negocio sin revisar este impacto. Students deberá priorizar desactivación.
-- Student.isActive todavía no existe. Incorporar su migración y efecto sobre sesiones/accesos en Etapa 1.
+- Varias relaciones conservan ON DELETE CASCADE, incluidas relaciones desde Student y Subscription. La API Students no expone DELETE; revisar las cascadas antes de cualquier herramienta operativa que pueda borrar físicamente.
 
 ## Índices y migraciones
 
 Los índices actuales cubren hashes únicos, identidad/rol y expiración de sesión, períodos de una alumna, claves de relaciones y consultas de auditoría. No se agregaron índices especulativos en Fase 0.
 
-No hubo cambios de schema ni migraciones nuevas en Fase 0. Se reutilizaron init y add_session, y se aplicaron en schemas aislados de PostgreSQL para E2E. No se ejecutaron resets ni migraciones destructivas sobre datos de desarrollo.
+Etapa 1 agregó `Student.isActive BOOLEAN NOT NULL DEFAULT true` mediante `20260903120000_add_student_active_status`. No se agregó índice: el booleano tiene baja selectividad y un B-tree de nombre no resuelve la búsqueda `%texto%`. La migración se validó desde Fase 0 con una fila previa y también desde cero en PostgreSQL.

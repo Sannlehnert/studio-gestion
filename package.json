@@ -14,6 +14,7 @@
     "typecheck:backend": "npm run typecheck --workspace=apps/backend",
     "test:backend": "npm run test --workspace=apps/backend",
     "test:e2e:backend": "npm run test:e2e --workspace=apps/backend",
+    "test:migration:students": "npm run test:migration:students --workspace=apps/backend",
     "prisma:generate": "npm run prisma:generate --workspace=apps/backend",
     "prisma:migrate": "npm run prisma:migrate --workspace=apps/backend",
     "prisma:studio": "npm run prisma:studio --workspace=apps/backend",

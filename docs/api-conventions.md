@@ -15,6 +15,12 @@ Prefijo /api/v1. Los endpoints usan DTOs estrictos y OpenAPI del backend; no dup
 | GET /api/v1/student/check                                      | STUDENT                             | 200, comprobación de permisos                          |
 | POST /api/v1/admin/students/:studentId/access                  | ADMIN                               | 201, accessId, activationUrl con fragmento y expiresAt |
 | POST /api/v1/admin/students/:studentId/access/:accessId/revoke | ADMIN                               | 204; 409 si ya fue activado                            |
+| POST /api/v1/admin/students                                    | ADMIN                               | 201, crea una alumna activa                            |
+| GET /api/v1/admin/students                                     | ADMIN                               | 200, listado/búsqueda paginada                         |
+| GET /api/v1/admin/students/:id                                 | ADMIN                               | 200, detalle acotado de Student                        |
+| PATCH /api/v1/admin/students/:id                               | ADMIN                               | 200, modifica fullName                                 |
+| POST /api/v1/admin/students/:id/deactivate                     | ADMIN                               | 200, desactiva de forma idempotente                    |
+| POST /api/v1/admin/students/:id/reactivate                     | ADMIN                               | 200, reactiva de forma idempotente                     |
 
 Swagger de desarrollo: /api/docs; JSON: /api/docs-json. Deshabilitados en producción.
 
@@ -69,4 +75,4 @@ Fechas de API: ISO 8601 con zona; backend como autoridad temporal. BUSINESS_TIME
 
 Dinero persistido como Decimal(10,2), nunca Float. PLANNED: serializar importes como cadenas decimales al implementar Payments/Plans. No hay endpoints de dinero en esta fase.
 
-PLANNED: paginación estable y acotada al introducir listados. No se inventa ahora un contrato de paginación sin endpoints.
+El listado Students usa página/offset con `page` default 1 y máximo 100000, `limit` default 20 y máximo 100. Devuelve `{ items, meta: { page, limit, total, totalPages } }` y ordena por nombre e ID. El filtro `status` acepta `active`, `inactive` y `all`; `search` realiza coincidencia parcial sin distinguir mayúsculas. Ver [Students](students.md).

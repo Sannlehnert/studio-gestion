@@ -6,11 +6,14 @@ Monolito modular NestJS. El controller documenta HTTP, valida DTOs/params, llama
 
 ## Módulos existentes
 
+`StudentsModule` contiene el controller administrativo, DTOs y StudentsService. Prisma permanece como acceso directo a persistencia; el servicio coordina bloqueos, transacciones, estado y AuditLog. Los endpoints de StudentAccess permanecen en Admin/Auth para conservar sus contratos y su responsabilidad de credenciales.
+
 - AppModule: composición y configuración validada.
 - PrismaModule global: PrismaService, conexión al iniciar y desconexión al cerrar.
 - AuthModule: tokens, contraseñas, sesiones, cookies, login/activación/logout y guards.
 - AdminModule: comprobación de permisos y administración de StudentAccess.
 - StudentModule: únicamente comprobación de permisos de alumna; no es StudentsModule de negocio.
+- StudentsModule: gestión administrativa de Student, estado, paginación y auditoría.
 - HealthController: liveness con timestamp. El inicio de AppModule requiere conexión PostgreSQL, pero health no ejecuta una consulta nueva por request.
 
 La carpeta common contiene configuración HTTP compartida, DTO de error y filtro de excepciones. No es un contenedor de reglas de negocio.
@@ -43,7 +46,7 @@ DTOs con whitelist y forbidNonWhitelisted. IDs de accesos/alumnas recibidos por 
 
 Vitest para unitarios y pruebas HTTP; Supertest para flujos reales. El chequeo TypeScript incluye src, tests, seed y configuración de tests. Lint carga explícitamente oxlint.json, prohíbe any explícito y falla ante warnings.
 
-Los E2E exigen TEST_DATABASE_URL hacia una base *_test. El runner crea un schema e2e_ aleatorio, aplica migraciones, ejecuta ambas suites y elimina solo ese schema. No hay limpiezas globales de tablas de desarrollo. Tests de concurrencia y unicidad usan PostgreSQL real.
+Los E2E exigen TEST_DATABASE_URL hacia una base *_test. El runner crea un schema e2e_ aleatorio, aplica migraciones, ejecuta las suites y elimina solo ese schema. No hay limpiezas globales de tablas de desarrollo. Tests de concurrencia, migración y unicidad usan PostgreSQL real.
 
 El script de seed exige credenciales explícitas, no tiene contraseña por defecto, no cambia un Admin existente y tolera dos ejecuciones concurrentes del alta inicial.
 
