@@ -34,11 +34,20 @@ enum RecoveryStatus {
   REVOKED
 }
 
+enum SubscriptionStatus {
+  ACTIVE
+  CANCELLED
+}
+
 enum PaymentStatus {
-  PENDING
-  COMPLETED
-  FAILED
-  REFUNDED
+  CONFIRMED
+  VOIDED
+}
+
+enum PaymentMethod {
+  CASH
+  TRANSFER
+  OTHER
 }
 
 // --------- Models ---------
@@ -49,6 +58,9 @@ model Admin {
   passwordHash String
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+
+  paymentsCreated Payment[] @relation("PaymentCreatedBy")
+  paymentsVoided  Payment[] @relation("PaymentVoidedBy")
 }
 
 model Student {
@@ -80,10 +92,11 @@ model StudentAccess {
 
 model Plan {
   id          String   @id @default(uuid())
-  name        String
-  description String?
-  classCount  Int      @default(8)
+  name        String   @db.VarChar(120)
+  description String?  @db.VarChar(500)
+  classCount  Int
   price       Decimal  @db.Decimal(10, 2)
+  currency    String   @default("ARS") @db.VarChar(3)
   isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -92,38 +105,54 @@ model Plan {
 }
 
 model Subscription {
-  id          String   @id @default(uuid())
-  studentId   String
-  planId      String
-  periodStart DateTime
-  periodEnd   DateTime
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id             String             @id @default(uuid())
+  studentId      String
+  planId         String
+  planName       String             @db.VarChar(120)
+  classAllowance Int
+  agreedPrice    Decimal            @db.Decimal(10, 2)
+  currency       String             @db.VarChar(3)
+  periodStart    DateTime
+  periodEnd      DateTime
+  status         SubscriptionStatus @default(ACTIVE)
+  cancelledAt    DateTime?
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
 
-  student     Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  student     Student      @relation(fields: [studentId], references: [id], onDelete: Restrict)
   plan        Plan         @relation(fields: [planId], references: [id])
   payments    Payment[]
   enrollments Enrollment[]
   recoveries  Recovery[]
 
-  @@index([studentId, periodStart, periodEnd])
+  @@index([studentId, status, periodStart, periodEnd])
   @@index([planId])
 }
 
 model Payment {
-  id             String        @id @default(uuid())
-  subscriptionId String
-  amount         Decimal       @db.Decimal(10, 2)
-  currency       String        @default("ARS")
-  status         PaymentStatus @default(PENDING)
-  paidAt         DateTime?
-  createdAt      DateTime      @default(now())
-  updatedAt      DateTime      @updatedAt
+  id               String         @id @default(uuid())
+  subscriptionId   String
+  createdByAdminId String
+  voidedByAdminId  String?
+  idempotencyKey   String         @unique @db.VarChar(64)
+  amount           Decimal        @db.Decimal(10, 2)
+  currency         String         @db.VarChar(3)
+  status           PaymentStatus  @default(CONFIRMED)
+  paidAt           DateTime
+  method           PaymentMethod?
+  note             String?        @db.VarChar(500)
+  voidedAt         DateTime?
+  voidReason       String?        @db.VarChar(500)
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
 
-  subscription Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  subscription   Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Restrict)
+  createdByAdmin Admin        @relation("PaymentCreatedBy", fields: [createdByAdminId], references: [id], onDelete: Restrict)
+  voidedByAdmin  Admin?       @relation("PaymentVoidedBy", fields: [voidedByAdminId], references: [id], onDelete: Restrict)
 
-  @@index([subscriptionId])
+  @@index([subscriptionId, status, paidAt])
+  @@index([createdByAdminId])
+  @@index([voidedByAdminId])
 }
 
 model Schedule {
@@ -233,16 +262,16 @@ enum SessionRole {
 }
 
 model Session {
-  id        String      @id @default(uuid())
-  userId    String
-  role      SessionRole
-  tokenHash String      @unique
-  expiresAt DateTime
-  revokedAt DateTime?
-  ip        String?
-  userAgent String?
-  createdAt DateTime    @default(now())
-  lastSeenAt DateTime   @default(now())
+  id         String      @id @default(uuid())
+  userId     String
+  role       SessionRole
+  tokenHash  String      @unique
+  expiresAt  DateTime
+  revokedAt  DateTime?
+  ip         String?
+  userAgent  String?
+  createdAt  DateTime    @default(now())
+  lastSeenAt DateTime    @default(now())
 
   @@index([userId, role])
   @@index([expiresAt])

@@ -7,6 +7,7 @@ Sistema web para que una profesora gestione sus clases y alumnas, con énfasis e
 - Backend Foundation: COMPLETE
 - Backend Auth/Security Foundation: COMPLETE
 - Students: COMPLETE
+- Plans + Subscriptions + Payments: COMPLETE
 - Frontend: NOT STARTED
 
 El cierre y sus límites están en [validación de Fase 0](docs/phase-0-validation.md). La existencia de modelos Prisma de negocio no implica que tengan endpoints implementados.
@@ -97,9 +98,10 @@ Para E2E, copiar apps/backend/.env.test.example a apps/backend/.env.test y estab
 
     docker compose --env-file apps/backend/.env.test -f docker-compose.test.yml up -d --wait
     npm run test:migration:students
+    npm run test:migration:commercial
     npm run test:e2e:backend
 
-El contenedor usa PostgreSQL 16, puerto local 55432 y datos efímeros. La primera comprobación migra un schema desde Fase 0 y verifica que una alumna previa se preserve activa. El runner E2E crea otro schema aleatorio, aplica todas las migraciones, corre Auth y Students y elimina solo ese schema. Las suites no borran tablas completas de otra base.
+El contenedor usa PostgreSQL 16, puerto local 55432 y datos efímeros. Los verificadores cubren la migración Students y el núcleo comercial desde cero, como upgrade y ante histórico incompleto. El runner E2E crea otro schema aleatorio, aplica todas las migraciones, corre Auth, Students y negocio, y elimina sólo ese schema.
 
 Para detener únicamente la base de pruebas:
 
@@ -116,7 +118,9 @@ No se necesita eliminar contenedores de desarrollo por un aviso de servicios aje
 - [Autenticación y sesiones](docs/authentication.md)
 - [Gestión de alumnas](docs/students.md)
 - [Validación de Etapa 1](docs/stage-1-validation.md)
+- [Plans, Subscriptions y Payments](docs/plans-subscriptions-payments.md)
+- [Validación de Etapa 2](docs/stage-2-validation.md)
 - [Baseline de seguridad](docs/security.md)
 - [Auditoría y validación de Fase 0](docs/phase-0-validation.md)
 
-La próxima etapa prevista es Plans + Subscriptions + Payments. No se inició en esta etapa.
+La próxima etapa prevista es Schedules + Enrollments + ClassSessions. No se inició en esta etapa.

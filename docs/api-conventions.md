@@ -21,6 +21,23 @@ Prefijo /api/v1. Los endpoints usan DTOs estrictos y OpenAPI del backend; no dup
 | PATCH /api/v1/admin/students/:id                               | ADMIN                               | 200, modifica fullName                                 |
 | POST /api/v1/admin/students/:id/deactivate                     | ADMIN                               | 200, desactiva de forma idempotente                    |
 | POST /api/v1/admin/students/:id/reactivate                     | ADMIN                               | 200, reactiva de forma idempotente                     |
+| POST /api/v1/admin/plans                                       | ADMIN                               | 201, crea una oferta activa                            |
+| GET /api/v1/admin/plans                                        | ADMIN                               | 200, lista/busca planes paginados                      |
+| GET /api/v1/admin/plans/:id                                    | ADMIN                               | 200, detalle del plan                                  |
+| PATCH /api/v1/admin/plans/:id                                  | ADMIN                               | 200, edita catálogo para futuras ventas                |
+| POST /api/v1/admin/plans/:id/activate                          | ADMIN                               | 200, activa de forma idempotente                       |
+| POST /api/v1/admin/plans/:id/deactivate                        | ADMIN                               | 200, desactiva de forma idempotente                    |
+| POST /api/v1/admin/subscriptions                               | ADMIN                               | 201, crea contrato y snapshot                          |
+| GET /api/v1/admin/subscriptions                                | ADMIN                               | 200, lista por estado operativo                        |
+| GET /api/v1/admin/subscriptions/:id                            | ADMIN                               | 200, contrato y finanzas derivadas                     |
+| POST /api/v1/admin/subscriptions/:id/cancel                    | ADMIN                               | 200, cancela de forma idempotente                      |
+| GET /api/v1/admin/subscriptions/:id/financial-summary          | ADMIN                               | 200, acordado, pagado, saldo y estado                  |
+| GET /api/v1/admin/students/:studentId/subscriptions            | ADMIN                               | 200, contratos de una alumna                           |
+| POST /api/v1/admin/subscriptions/:subscriptionId/payments      | ADMIN + Idempotency-Key UUID v4     | 201, registra dinero recibido                          |
+| GET /api/v1/admin/subscriptions/:subscriptionId/payments       | ADMIN                               | 200, pagos de una suscripción                          |
+| GET /api/v1/admin/payments                                     | ADMIN                               | 200, lista pagos y anulaciones                         |
+| GET /api/v1/admin/payments/:id                                 | ADMIN                               | 200, detalle trazable                                  |
+| POST /api/v1/admin/payments/:id/void                           | ADMIN                               | 200, anula con motivo e idempotencia                   |
 
 Swagger de desarrollo: /api/docs; JSON: /api/docs-json. Deshabilitados en producción.
 
@@ -73,6 +90,8 @@ Las fechas de revocación no se reemplazan al repetir el pedido. Los eventos Aud
 
 Fechas de API: ISO 8601 con zona; backend como autoridad temporal. BUSINESS_TIMEZONE se valida centralmente; las reglas de calendarios recurrentes todavía no están implementadas.
 
-Dinero persistido como Decimal(10,2), nunca Float. PLANNED: serializar importes como cadenas decimales al implementar Payments/Plans. No hay endpoints de dinero en esta fase.
+Dinero persistido como Decimal(10,2), nunca Float, y serializado como string con dos decimales. Requests monetarios también exigen strings para rechazar redondeos JSON implícitos. La moneda soportada en el MVP es ARS y Payment la deriva de Subscription.
 
 El listado Students usa página/offset con `page` default 1 y máximo 100000, `limit` default 20 y máximo 100. Devuelve `{ items, meta: { page, limit, total, totalPages } }` y ordena por nombre e ID. El filtro `status` acepta `active`, `inactive` y `all`; `search` realiza coincidencia parcial sin distinguir mayúsculas. Ver [Students](students.md).
+
+Plans, Subscriptions y Payments reutilizan la misma forma paginada. Plans filtra `active|inactive|all` y busca por nombre. Subscriptions filtra `active|expired|cancelled|all`. Payments filtra `confirmed|voided|all`. Fechas de entrada requieren ISO 8601 con zona; periodEnd es exclusivo.

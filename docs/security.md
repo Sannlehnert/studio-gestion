@@ -16,7 +16,7 @@ Esta baseline describe el código existente. COMPLETE para Auth/Foundation no si
 | Helmet                | IMPLEMENTED                  | CSP, nosniff, anti-framing, no-referrer y demás headers; HSTS solo en producción.                                                    |
 | Rate limiting         | IMPLEMENTED                  | Categorías por IP, límites configurables, Retry-After, almacén en memoria.                                                           |
 | Payload               | IMPLEMENTED                  | JSON 16 KiB por defecto, sin compresión ni URL encoded.                                                                              |
-| IDOR/BOLA             | IMPLEMENTED en Auth/Students | Identidad por sesión; Students solo Admin, IDs validados y accesos acotados a la alumna.                                             |
+| IDOR/BOLA             | IMPLEMENTED                  | Identidad por sesión; Students y núcleo comercial sólo Admin, UUIDs validados y recursos anidados comprobados.                        |
 | SQL injection         | IMPLEMENTED en Auth          | Prisma parametrizado. El único identificador SQL dinámico del runner de tests se genera internamente y se acota a un schema aislado. |
 | Mass assignment       | IMPLEMENTED                  | DTOs estrictos y persistencia explícita.                                                                                             |
 | Errores/logs          | IMPLEMENTED / PARTIAL        | Sin stacks, tokens ni bodies en respuestas o logs de error; falta telemetría operativa de seguridad.                                 |
@@ -70,4 +70,10 @@ Ver el resultado real de auditoría y pruebas en [validación](phase-0-validatio
 
 ## Datos e historial
 
-No hay borrado físico de Student por API. `isActive=false` revoca accesos pendientes y sesiones Student en la misma transacción; SessionGuard también exige identidad activa. Reactivar no revive credenciales. Las cascadas del schema continúan existiendo y deben revisarse antes de cualquier herramienta de borrado operativo. Auth y Students escriben auditoría transaccional sin secretos. La retención y purga de sesiones, metadatos de red y AuditLog requiere una política explícita y aún no está implementada.
+No hay borrado físico de Student ni del núcleo comercial por API. `isActive=false` revoca accesos pendientes y sesiones Student; reactivar no revive credenciales. Plan inactivo sólo bloquea nuevas ventas. Subscription conserva condiciones contratadas y Payment sólo puede anularse con autor, fecha y motivo.
+
+Los DTOs no aceptan IDs, estados, moneda ni totales calculados fuera de cada caso de uso. Los servicios derivan snapshots, currency y saldos. Los precios/importes llegan como strings decimales acotados. PostgreSQL repite invariantes críticas con CHECK, FK, UNIQUE y exclusión temporal.
+
+Subscription concurrentes se serializan por Student y terminan protegidas por `Subscription_no_active_overlap`. Payment concurrentes se serializan por Subscription antes de calcular saldo; el sobrepago se rechaza. `Idempotency-Key` UUID v4 hace seguro el replay de un registro idéntico y rechaza reutilización con otro payload. AuditLog no guarda esa clave.
+
+Auth, Students y operaciones comerciales escriben auditoría en la misma transacción sin secretos. La retención y purga de sesiones, metadatos de red y AuditLog requiere una política explícita y aún no está implementada. Modelos de etapas futuras conservan algunas cascadas que deben revisarse antes de exponer borrado operativo.

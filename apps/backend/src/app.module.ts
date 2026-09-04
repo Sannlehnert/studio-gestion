@@ -7,6 +7,9 @@ import { AuthModule } from './auth/auth.module';
 import { AdminModule } from './admin/admin.module';
 import { StudentModule } from './student/student.module';
 import { StudentsModule } from './students/students.module';
+import { PlansModule } from './plans/plans.module';
+import { SubscriptionsModule } from './subscriptions/subscriptions.module';
+import { PaymentsModule } from './payments/payments.module';
 
 @Module({
   imports: [
@@ -20,6 +23,9 @@ import { StudentsModule } from './students/students.module';
     AdminModule,
     StudentModule,
     StudentsModule,
+    PlansModule,
+    SubscriptionsModule,
+    PaymentsModule,
   ],
   controllers: [HealthController],
 })

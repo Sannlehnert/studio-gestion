@@ -6,7 +6,7 @@ Monolito modular NestJS. El controller documenta HTTP, valida DTOs/params, llama
 
 ## Módulos existentes
 
-`StudentsModule` contiene el controller administrativo, DTOs y StudentsService. Prisma permanece como acceso directo a persistencia; el servicio coordina bloqueos, transacciones, estado y AuditLog. Los endpoints de StudentAccess permanecen en Admin/Auth para conservar sus contratos y su responsabilidad de credenciales.
+Cada módulo de negocio contiene controllers administrativos delgados, DTOs y un servicio que coordina reglas, bloqueos, transacciones y AuditLog. Prisma permanece como acceso directo a persistencia. Los endpoints de StudentAccess permanecen en Admin/Auth para conservar su responsabilidad sobre credenciales.
 
 - AppModule: composición y configuración validada.
 - PrismaModule global: PrismaService, conexión al iniciar y desconexión al cerrar.
@@ -14,6 +14,9 @@ Monolito modular NestJS. El controller documenta HTTP, valida DTOs/params, llama
 - AdminModule: comprobación de permisos y administración de StudentAccess.
 - StudentModule: únicamente comprobación de permisos de alumna; no es StudentsModule de negocio.
 - StudentsModule: gestión administrativa de Student, estado, paginación y auditoría.
+- PlansModule: catálogo mutable, precio referencial y activación.
+- SubscriptionsModule: contratos inmutables, snapshot, períodos, cancelación y resumen financiero.
+- PaymentsModule: registro idempotente, listados y anulación trazable.
 - HealthController: liveness con timestamp. El inicio de AppModule requiere conexión PostgreSQL, pero health no ejecuta una consulta nueva por request.
 
 La carpeta common contiene configuración HTTP compartida, DTO de error y filtro de excepciones. No es un contenedor de reglas de negocio.
@@ -34,7 +37,7 @@ SessionGuard consulta SessionService y luego la identidad del rol. AdminGuard y 
 
 SessionService usa findUnique porque tokenHash tiene UNIQUE; lastSeenAt se actualiza con un predicado de vigencia. No hay sliding expiration. Las transacciones de activación, emisión, revocación y login/logout incluyen sus eventos AuditLog; si una operación crítica falla, no queda un éxito parcial.
 
-La actualización condicional de StudentAccess serializa consumo y revocación sobre la misma fila bajo READ COMMITTED. No hace falta un lock distribuido. Las operaciones futuras de cupos requieren un diseño propio.
+La actualización condicional de StudentAccess serializa consumo y revocación sobre la misma fila bajo READ COMMITTED. Las altas de Subscription bloquean Student y Plan, y PostgreSQL aplica una exclusión temporal final. Registrar o anular Payment bloquea la Subscription para que el saldo no cambie entre lectura y escritura. No hace falta un lock distribuido en el monolito actual. Las operaciones futuras de cupos requieren un diseño propio.
 
 ## Contratos y errores
 
@@ -46,7 +49,7 @@ DTOs con whitelist y forbidNonWhitelisted. IDs de accesos/alumnas recibidos por 
 
 Vitest para unitarios y pruebas HTTP; Supertest para flujos reales. El chequeo TypeScript incluye src, tests, seed y configuración de tests. Lint carga explícitamente oxlint.json, prohíbe any explícito y falla ante warnings.
 
-Los E2E exigen TEST_DATABASE_URL hacia una base *_test. El runner crea un schema e2e_ aleatorio, aplica migraciones, ejecuta las suites y elimina solo ese schema. No hay limpiezas globales de tablas de desarrollo. Tests de concurrencia, migración y unicidad usan PostgreSQL real.
+Los E2E exigen TEST_DATABASE_URL hacia una base *_test. El runner crea un schema e2e_ aleatorio, aplica migraciones, ejecuta las suites y elimina solo ese schema. No hay limpiezas globales de tablas de desarrollo. Los tests comerciales validan Decimal, snapshots, constraints, auditoría, autorización y carreras contra PostgreSQL real. El verificador de migración prueba instalación desde cero, upgrade desde Etapa 1 y rechazo seguro de histórico incompleto.
 
 El script de seed exige credenciales explícitas, no tiene contraseña por defecto, no cambia un Admin existente y tolera dos ejecuciones concurrentes del alta inicial.
 
