@@ -17,6 +17,10 @@ describe('environment validation', () => {
       'http://localhost:5174',
     ]);
     expect(app.environment).toBe(Environment.Test);
+    expect(app.attendanceOpenBeforeMinutes).toBe(60);
+    expect(app.attendanceCloseAfterMinutes).toBe(60);
+    expect(app.attendanceReconcileIntervalMinutes).toBe(5);
+    expect(app.rateLimits.attendance).toEqual({ limit: 20, windowMs: 60_000 });
   });
   it.each([
     { COOKIE_SECURE: 'yes' },
@@ -34,6 +38,10 @@ describe('environment validation', () => {
     { TRUST_PROXY: '0.0.0.0/99' },
     { TRUST_PROXY: '0.0.0.0/0' },
     { RATE_LOGIN_LIMIT: '0' },
+    { RATE_ATTENDANCE_LIMIT: '0' },
+    { ATTENDANCE_OPEN_BEFORE_MINUTES: '-1' },
+    { ATTENDANCE_CLOSE_AFTER_MINUTES: '1441' },
+    { ATTENDANCE_RECONCILE_INTERVAL_MINUTES: '0' },
     { SESSION_COOKIE_NAME: '__Host-session', COOKIE_SECURE: false },
   ])('rejects an unsafe or malformed setting: %j', (invalid) => {
     expect(() => validate({ ...base, ...invalid })).toThrow();

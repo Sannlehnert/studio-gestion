@@ -21,6 +21,7 @@ Cada módulo de negocio contiene controllers administrativos delgados, DTOs y un
 - SchedulesModule: recurrencias semanales, capacidad habitual y estado.
 - EnrollmentsModule: pertenencias temporales con reglas contractuales y cupos.
 - ClassSessionsModule: materialización idempotente, snapshots, excepciones, cancelación y consulta de alumnas esperadas.
+- AttendanceModule: PRESENT de Student, consultas Student/Admin, consumo derivado y reconciliación de ABSENT al iniciar y periódicamente.
 - HealthController: liveness con timestamp. El inicio de AppModule requiere conexión PostgreSQL, pero health no ejecuta una consulta nueva por request.
 
 La carpeta common contiene configuración HTTP compartida, DTO de error y filtro de excepciones. No es un contenedor de reglas de negocio.
@@ -45,6 +46,8 @@ La actualización condicional de StudentAccess serializa consumo y revocación s
 
 Las operaciones de cupo bloquean Schedule antes de leer Enrollment o cambiar una capacidad. La generación toma bloqueos compartidos de los Schedules activos y usa inserción con conflicto más UNIQUE(scheduleId, occurrenceDate). Así, edición, inscripción y generación observan un snapshot compatible sin necesitar locks distribuidos.
 
+Attendance toma el reloj desde `CLOCK`, bloquea ClassSession y luego Student/Subscription en orden estable, vuelve a validar elegibilidad y ventana, y persiste Attendance más AuditLog en la misma transacción. El reconciliador usa las mismas filas y la unicidad final; `attendanceClosedAt` permite recuperar cierres omitidos después de downtime.
+
 ## Contratos y errores
 
 Prefijo /api/v1. Separación /admin y /student; Auth compartido solo para identidad y logout. Swagger documenta DTOs, cookies y respuestas, disponible en /api/docs y /api/docs-json fuera de producción.
@@ -55,7 +58,7 @@ DTOs con whitelist y forbidNonWhitelisted. IDs de accesos/alumnas recibidos por 
 
 Vitest para unitarios y pruebas HTTP; Supertest para flujos reales. El chequeo TypeScript incluye src, tests, seed y configuración de tests. Lint carga explícitamente oxlint.json, prohíbe any explícito y falla ante warnings.
 
-Los E2E exigen TEST_DATABASE_URL hacia una base *_test. El runner crea un schema e2e_ aleatorio, aplica migraciones, ejecuta las suites y elimina solo ese schema. No hay limpiezas globales de tablas de desarrollo. Los tests validan snapshots, constraints, auditoría, autorización y carreras contra PostgreSQL real. Los verificadores de migración prueban instalación desde cero, upgrades incrementales y rechazo seguro de histórico incompleto.
+Los E2E exigen TEST_DATABASE_URL hacia una base *_test. El runner crea un schema e2e_ aleatorio, aplica migraciones, ejecuta las suites y elimina solo ese schema. No hay limpiezas globales de tablas de desarrollo. Los tests validan snapshots, constraints, auditoría, autorización, reconciliación y carreras contra PostgreSQL real. Los verificadores de migración prueban instalación desde cero, upgrades incrementales y rechazo seguro de histórico incompleto.
 
 El script de seed exige credenciales explícitas, no tiene contraseña por defecto, no cambia un Admin existente y tolera dos ejecuciones concurrentes del alta inicial.
 

@@ -13,6 +13,7 @@ import { PaymentsModule } from './payments/payments.module';
 import { SchedulesModule } from './schedules/schedules.module';
 import { EnrollmentsModule } from './enrollments/enrollments.module';
 import { ClassSessionsModule } from './class-sessions/class-sessions.module';
+import { AttendanceModule } from './attendance/attendance.module';
 
 @Module({
   imports: [
@@ -32,6 +33,7 @@ import { ClassSessionsModule } from './class-sessions/class-sessions.module';
     SchedulesModule,
     EnrollmentsModule,
     ClassSessionsModule,
+    AttendanceModule,
   ],
   controllers: [HealthController],
 })

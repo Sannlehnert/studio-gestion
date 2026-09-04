@@ -34,6 +34,7 @@ const classSessionProjection = {
   status: true,
   cancelledAt: true,
   cancellationReason: true,
+  attendanceClosedAt: true,
   createdAt: true,
   updatedAt: true,
   schedule: {
@@ -270,6 +271,11 @@ export class ClassSessionsService {
       if (current.status === ClassSessionStatus.COMPLETED) {
         throw new ConflictException('Una clase completada no puede cancelarse');
       }
+      if ((await tx.attendance.count({ where: { classSessionId: id } })) > 0) {
+        throw new ConflictException(
+          'Una clase con asistencia registrada no puede cancelarse',
+        );
+      }
       const updated = await tx.classSession.update({
         where: { id },
         data: {
@@ -316,7 +322,7 @@ export class ClassSessionsService {
             items: [],
           };
         }
-        const enrollments = await this.findExpected(tx, session);
+        const enrollments = await this.findExpectedRecords(tx, session);
         return {
           classSessionId: id,
           classSessionStatus: session.status,
@@ -343,10 +349,10 @@ export class ClassSessionsService {
     },
   ) {
     if (session.status === ClassSessionStatus.CANCELLED) return 0;
-    return (await this.findExpected(tx, session)).length;
+    return (await this.findExpectedRecords(tx, session)).length;
   }
 
-  private findExpected(
+  findExpectedRecords(
     client: Prisma.TransactionClient | PrismaService,
     session: {
       scheduleId: string;
@@ -374,7 +380,7 @@ export class ClassSessionsService {
       select: {
         id: true,
         subscriptionId: true,
-        student: { select: { id: true, fullName: true } },
+        student: { select: { id: true, fullName: true, isActive: true } },
       },
       orderBy: [{ student: { fullName: 'asc' } }, { id: 'asc' }],
     });

@@ -58,6 +58,12 @@ Prefijo /api/v1. Los endpoints usan DTOs estrictos y OpenAPI del backend; no dup
 | PATCH /api/v1/admin/class-sessions/:id/time                    | ADMIN                               | 200, excepción horaria                                 |
 | POST /api/v1/admin/class-sessions/:id/cancel                   | ADMIN                               | 200, cancela idempotentemente con motivo               |
 | GET /api/v1/admin/class-sessions/:id/expected-students         | ADMIN                               | 200, roster derivado para Attendance                   |
+| GET /api/v1/admin/class-sessions/:id/attendance                | ADMIN                               | 200, expected/present/absent/pending y ventana         |
+| GET /api/v1/admin/subscriptions/:id/class-summary              | ADMIN                               | 200, allowance y consumo derivado                      |
+| GET /api/v1/student/class-sessions/upcoming                    | STUDENT                             | 200, próximas clases propias y ventana                 |
+| POST /api/v1/student/class-sessions/:id/attendance             | STUDENT                             | 200, crea o devuelve PRESENT propio                    |
+| GET /api/v1/student/class-sessions/:id/attendance              | STUDENT                             | 200, estado propio sin exponer otras alumnas           |
+| GET /api/v1/student/subscriptions/:id/class-summary            | STUDENT propietaria                 | 200, allowance y consumo propio                        |
 
 Swagger de desarrollo: /api/docs; JSON: /api/docs-json. Deshabilitados en producción.
 
@@ -74,6 +80,7 @@ Swagger de desarrollo: /api/docs; JSON: /api/docs-json. Deshabilitados en produc
 - Schedule recibe día ISO 1–7, horas `HH:mm` y capacidad 1–1000. No recibe minutos internos, IDs, estado ni timestamps.
 - Enrollment recibe IDs de Student/Subscription/Schedule y fechas locales `YYYY-MM-DD`; `validUntil` es exclusivo. No existe PATCH genérico.
 - La generación admite un rango local inclusivo de hasta 366 días. Las excepciones horarias reciben ISO 8601 con offset o `Z`; cancelar exige motivo.
+- Marcar Attendance recibe body vacío. Student, Subscription, estado, origen, timestamp y totales se derivan de sesión, dominio, base y reloj del backend. `upcoming.limit` admite 1–20.
 
 ## Respuestas y errores
 
@@ -109,9 +116,11 @@ Logout y revocación de un pendiente ya revocado son idempotentes. También lo s
 
 Las fechas de revocación no se reemplazan al repetir el pedido. Los eventos AuditLog de éxito se escriben en la misma transacción que el cambio.
 
+Repetir un PRESENT ya persistido devuelve 200 con el mismo Attendance y no crea otro evento. El cierre repetido no duplica ABSENT ni auditoría. ClassSession, Student y Subscription se bloquean para serializar PRESENT, reconciliación y el último allowance; UNIQUE(studentId, classSessionId) resuelve la carrera final.
+
 ## Fechas, dinero y futuras listas
 
-Los instantes contractuales y excepciones usan ISO 8601 con zona; el backend es la autoridad temporal. Las recurrencias usan fecha local `YYYY-MM-DD` y hora local `HH:mm`, interpretadas sólo con BUSINESS_TIMEZONE. ClassSession devuelve instantes UTC y conserva `occurrenceDate` como identidad civil. Las horas locales inexistentes o repetidas por cambios de offset se rechazan.
+Los instantes contractuales y excepciones usan ISO 8601 con zona; el backend es la autoridad temporal. Las recurrencias usan fecha local `YYYY-MM-DD` y hora local `HH:mm`, interpretadas sólo con BUSINESS_TIMEZONE. ClassSession devuelve instantes UTC y conserva `occurrenceDate` como identidad civil. Las horas locales inexistentes o repetidas por cambios de offset se rechazan. Attendance usa una ventana semiabierta: apertura inclusiva y cierre exclusivo. Ningún timestamp del cliente interviene.
 
 Dinero persistido como Decimal(10,2), nunca Float, y serializado como string con dos decimales. Requests monetarios también exigen strings para rechazar redondeos JSON implícitos. La moneda soportada en el MVP es ARS y Payment la deriva de Subscription.
 

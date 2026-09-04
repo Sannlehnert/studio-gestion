@@ -17,6 +17,7 @@ Esta baseline describe el código existente. COMPLETE para Auth/Foundation no si
 | Rate limiting         | IMPLEMENTED                  | Categorías por IP, límites configurables, Retry-After, almacén en memoria.                                                           |
 | Payload               | IMPLEMENTED                  | JSON 16 KiB por defecto, sin compresión ni URL encoded.                                                                              |
 | IDOR/BOLA             | IMPLEMENTED                  | Identidad por sesión; Students, núcleo comercial y scheduling sólo Admin, UUIDs validados y relaciones cruzadas comprobadas.          |
+| Attendance            | IMPLEMENTED                  | Student actúa para sí, body vacío, reloj del backend, ownership contractual, locks y UNIQUE; Admin sólo consulta en esta etapa.       |
 | SQL injection         | IMPLEMENTED en Auth          | Prisma parametrizado. El único identificador SQL dinámico del runner de tests se genera internamente y se acota a un schema aislado. |
 | Mass assignment       | IMPLEMENTED                  | DTOs estrictos y persistencia explícita.                                                                                             |
 | Errores/logs          | IMPLEMENTED / PARTIAL        | Sin stacks, tokens ni bodies en respuestas o logs de error; falta telemetría operativa de seguridad.                                 |
@@ -55,6 +56,7 @@ CSP de API restringida; únicamente el Swagger de desarrollo permite estilos inl
 | Admin login        | 10 por 15 minutos | Pocos accesos legítimos de la profesora y costo de Argon2.                        |
 | Activación Student | 60 por 15 minutos | Permitir activación de un grupo desde una misma red; tokens de alta entropía.     |
 | Emisión de accesos | 30 por 15 minutos | Cubre la emisión de un grupo habitual, restringiendo abuso.                       |
+| Marcar Attendance  | 20 por minuto     | Tolera double taps y reduce ráfagas; integridad depende de transacción y DB.       |
 
 Las variables RATE_* permiten ajustar con evidencia de uso. El límite general y el sensible se acumulan. Contadores en memoria por proceso; reiniciar los reinicia. Una instancia es el supuesto actual. Antes de escalar horizontalmente usar un store compartido y protección en el proxy.
 
@@ -78,4 +80,8 @@ Subscription concurrentes se serializan por Student y terminan protegidas por `S
 
 Scheduling no acepta IDs internos, estado, capacidad ni timestamps fuera del DTO específico de cada caso de uso. La FK compuesta impide asignar a una Student una Subscription ajena incluso fuera del servicio. Los cupos se serializan por Schedule; PostgreSQL rechaza Enrollment solapados y clases duplicadas. La generación sólo usa Schedules activos y la cancelación exige Admin, motivo y auditoría. Las horas recurrentes nunca dependen del reloj o timezone del navegador.
 
-Auth, Students y operaciones comerciales escriben auditoría en la misma transacción sin secretos. La retención y purga de sesiones, metadatos de red y AuditLog requiere una política explícita y aún no está implementada. Modelos de etapas futuras conservan algunas cascadas que deben revisarse antes de exponer borrado operativo.
+Attendance no acepta `studentId`, `subscriptionId`, estado, origen, timestamp ni contadores. StudentGuard fija la identidad y vuelve a comprobar `Student.isActive`; una consulta Student exige una Attendance propia o pertenencia temporal. El servicio parametriza también su consulta SQL de próximas clases. CSRF cubre el POST y un límite configurable de 20 por minuto reduce abuso sin sustituir UNIQUE, FKs, CHECKs ni locks.
+
+Las relaciones históricas de Attendance y las relaciones Student/Subscription de Recovery usan `ON DELETE RESTRICT`. El AuditLog de PRESENT identifica a la Student; el cierre automático usa actor nulo y metadata agregada, sin inventar un Admin ni guardar cookies o tokens.
+
+Auth, Students, operaciones comerciales, scheduling y Attendance escriben auditoría en la misma transacción sin secretos. La retención y purga de sesiones, metadatos de red y AuditLog requiere una política explícita y aún no está implementada.

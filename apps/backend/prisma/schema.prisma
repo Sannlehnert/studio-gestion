@@ -18,7 +18,11 @@ enum StudentAccessStatus {
 enum AttendanceStatus {
   PRESENT
   ABSENT
-  EXCUSED
+}
+
+enum AttendanceSource {
+  STUDENT
+  SYSTEM
 }
 
 enum ClassSessionStatus {
@@ -124,6 +128,7 @@ model Subscription {
   plan        Plan         @relation(fields: [planId], references: [id])
   payments    Payment[]
   enrollments Enrollment[]
+  attendances Attendance[]
   recoveries  Recovery[]
 
   @@index([studentId, status, periodStart, periodEnd])
@@ -184,6 +189,7 @@ model ClassSession {
   cancelledAt        DateTime?
   cancelledByAdminId String?
   cancellationReason String?            @db.VarChar(500)
+  attendanceClosedAt DateTime?
   createdAt          DateTime           @default(now())
   updatedAt          DateTime           @updatedAt
 
@@ -195,6 +201,7 @@ model ClassSession {
   @@unique([scheduleId, occurrenceDate])
   @@index([occurrenceDate, status])
   @@index([startAt, endAt])
+  @@index([status, endAt, attendanceClosedAt])
   @@index([cancelledByAdminId])
 }
 
@@ -220,18 +227,21 @@ model Enrollment {
 model Attendance {
   id             String           @id @default(uuid())
   studentId      String
+  subscriptionId String
   classSessionId String
   status         AttendanceStatus @default(PRESENT)
-  markedAt       DateTime         @default(now())
-  note           String?
+  source         AttendanceSource
+  recordedAt     DateTime         @default(now())
 
   recovery Recovery? @relation("RecoveryOriginalAbsence")
 
-  student      Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  classSession ClassSession @relation(fields: [classSessionId], references: [id], onDelete: Cascade)
+  student      Student      @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  subscription Subscription @relation(fields: [subscriptionId, studentId], references: [id, studentId], onDelete: Restrict)
+  classSession ClassSession @relation(fields: [classSessionId], references: [id], onDelete: Restrict)
 
   @@unique([studentId, classSessionId])
-  @@index([classSessionId])
+  @@index([classSessionId, status])
+  @@index([subscriptionId, status])
 }
 
 model Recovery {
@@ -246,8 +256,8 @@ model Recovery {
   expiresAt         DateTime?
   note              String?
 
-  student         Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  subscription    Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  student         Student      @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  subscription    Subscription @relation(fields: [subscriptionId, studentId], references: [id, studentId], onDelete: Restrict)
   originalAbsence Attendance   @relation("RecoveryOriginalAbsence", fields: [originalAbsenceId], references: [id])
   recoverySession ClassSession @relation("RecoverySession", fields: [recoverySessionId], references: [id])
 

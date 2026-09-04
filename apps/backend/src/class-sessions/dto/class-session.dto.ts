@@ -145,6 +145,8 @@ export class ClassSessionResponseDto {
   cancelledAt!: Date | null;
   @ApiProperty({ nullable: true })
   cancellationReason!: string | null;
+  @ApiProperty({ format: 'date-time', nullable: true })
+  attendanceClosedAt!: Date | null;
   @ApiProperty({ type: ClassSessionScheduleDto })
   schedule!: ClassSessionScheduleDto;
   @ApiProperty({ format: 'date-time' })

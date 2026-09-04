@@ -38,13 +38,13 @@ La expectativa de una ClassSession se deriva de los Enrollment vigentes en `occu
 
 Schedule serializa altas, cambios y ediciones de capacidad. Una inscripción nueva debe respetar el máximo de intervalos concurrentes y también cada capacidad excepcional ya generada en su vigencia. Bajar `Schedule.defaultCapacity` no puede dejar por debajo inscripciones futuras; bajar `ClassSession.capacity` no puede dejar fuera alumnas esperadas.
 
-No se creó una tabla de reservas. Attendance podrá consultar `GET /api/v1/admin/class-sessions/:id/expected-students`. Una clase CANCELLED devuelve `attendanceRequired=false` y ninguna alumna esperada; no deberá generar ausencias ni consumir allowance.
+No se creó una tabla de reservas. Attendance reutiliza la misma derivación de `expected-students`. Una clase CANCELLED devuelve `attendanceRequired=false`, no genera ausencias y no consume allowance.
 
 ## Excepciones y cancelación
 
 Sólo una ClassSession SCHEDULED admite cambio de capacidad o de horario. La excepción de horario debe conservar la misma fecha local de `occurrenceDate`, tener inicio anterior al fin y durar como máximo 24 horas. La identidad de generación no cambia.
 
-Cancelar exige motivo de 3 a 500 caracteres y persiste estado, autor y fecha. El CHECK de PostgreSQL no permite un CANCELLED incompleto ni datos de cancelación sobre otros estados. El replay es idempotente y no reemplaza el motivo original.
+Cancelar exige motivo de 3 a 500 caracteres y persiste estado, autor y fecha. El CHECK de PostgreSQL no permite un CANCELLED incompleto ni datos de cancelación sobre otros estados. El replay es idempotente y no reemplaza el motivo original. Una clase con Attendance o ya COMPLETED no puede cancelarse porque alteraría consumo histórico.
 
 ## API Admin
 

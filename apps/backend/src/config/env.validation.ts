@@ -21,10 +21,16 @@ export interface AppSettings {
   cookieSecure: boolean;
   adminSessionTtlMs: number;
   studentSessionTtlMs: number;
+  attendanceOpenBeforeMinutes: number;
+  attendanceCloseAfterMinutes: number;
+  attendanceReconcileIntervalMinutes: number;
   swaggerEnabled: boolean;
   bodyLimitBytes: number;
   trustProxy: false | string[];
-  rateLimits: Record<'api' | 'login' | 'activation' | 'access', RatePolicy>;
+  rateLimits: Record<
+    'api' | 'login' | 'activation' | 'access' | 'attendance',
+    RatePolicy
+  >;
 }
 
 export function validate(input: Record<string, unknown>) {
@@ -190,12 +196,31 @@ export function validate(input: Record<string, unknown>) {
       60_000,
       7_776_000_000,
     ),
+    attendanceOpenBeforeMinutes: integer(
+      'ATTENDANCE_OPEN_BEFORE_MINUTES',
+      60,
+      0,
+      1440,
+    ),
+    attendanceCloseAfterMinutes: integer(
+      'ATTENDANCE_CLOSE_AFTER_MINUTES',
+      60,
+      0,
+      1440,
+    ),
+    attendanceReconcileIntervalMinutes: integer(
+      'ATTENDANCE_RECONCILE_INTERVAL_MINUTES',
+      5,
+      1,
+      1440,
+    ),
     bodyLimitBytes: integer('BODY_LIMIT_BYTES', 16_384, 1_024, 1_048_576),
     rateLimits: {
       api: rate('API', 300, 60_000),
       login: rate('LOGIN', 10, 900_000),
       activation: rate('ACTIVATION', 60, 900_000),
       access: rate('ACCESS', 30, 900_000),
+      attendance: rate('ATTENDANCE', 20, 60_000),
     },
   };
   return { ...input, DATABASE_URL: databaseUrl, app };
