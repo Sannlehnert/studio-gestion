@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { ClassSessionStatus, Prisma, SubscriptionStatus } from '@prisma/client';
 import { PrismaService } from '../prisma.service';
+import { StudentStatusHistoryService } from '../students/student-status-history.service';
 import {
   databaseDateToLocalDate,
   isoDayOfWeek,
@@ -57,6 +58,7 @@ export class ClassSessionsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly businessTime: BusinessTimeService,
+    private readonly studentStatusHistory: StudentStatusHistoryService,
   ) {}
 
   async generate(dto: GenerateClassSessionsDto, actorId: string) {
@@ -185,8 +187,8 @@ export class ClassSessionsService {
     const session = await this.withLockedSession(id, async (tx, current) => {
       this.assertEditable(current.status);
       if (current.capacity === dto.capacity) return current;
-      const expectedCount = await this.expectedCount(tx, current);
-      if (dto.capacity < expectedCount) {
+      const reservedCount = await this.capacityReservationCount(tx, current);
+      if (dto.capacity < reservedCount) {
         throw new ConflictException(
           'La capacidad es menor que las alumnas esperadas para la clase',
         );
@@ -339,7 +341,7 @@ export class ClassSessionsService {
     );
   }
 
-  private async expectedCount(
+  private async capacityReservationCount(
     tx: Prisma.TransactionClient,
     session: {
       scheduleId: string;
@@ -349,7 +351,9 @@ export class ClassSessionsService {
     },
   ) {
     if (session.status === ClassSessionStatus.CANCELLED) return 0;
-    return (await this.findExpectedRecords(tx, session)).length;
+    return tx.enrollment.count({
+      where: this.contractualEnrollmentWhere(session),
+    });
   }
 
   findExpectedRecords(
@@ -362,28 +366,39 @@ export class ClassSessionsService {
   ) {
     return client.enrollment.findMany({
       where: {
-        scheduleId: session.scheduleId,
-        validFrom: { lte: session.occurrenceDate },
-        validUntil: { gt: session.occurrenceDate },
-        subscription: {
-          periodStart: { lte: session.startAt },
-          periodEnd: { gt: session.startAt },
-          OR: [
-            { status: SubscriptionStatus.ACTIVE },
-            {
-              status: SubscriptionStatus.CANCELLED,
-              cancelledAt: { gt: session.startAt },
-            },
-          ],
-        },
+        ...this.contractualEnrollmentWhere(session),
+        student: this.studentStatusHistory.activeAtWhere(session.startAt),
       },
       select: {
         id: true,
         subscriptionId: true,
-        student: { select: { id: true, fullName: true, isActive: true } },
+        student: { select: { id: true, fullName: true } },
       },
       orderBy: [{ student: { fullName: 'asc' } }, { id: 'asc' }],
     });
+  }
+
+  private contractualEnrollmentWhere(session: {
+    scheduleId: string;
+    occurrenceDate: Date;
+    startAt: Date;
+  }): Prisma.EnrollmentWhereInput {
+    return {
+      scheduleId: session.scheduleId,
+      validFrom: { lte: session.occurrenceDate },
+      validUntil: { gt: session.occurrenceDate },
+      subscription: {
+        periodStart: { lte: session.startAt },
+        periodEnd: { gt: session.startAt },
+        OR: [
+          { status: SubscriptionStatus.ACTIVE },
+          {
+            status: SubscriptionStatus.CANCELLED,
+            cancelledAt: { gt: session.startAt },
+          },
+        ],
+      },
+    };
   }
 
   private async withLockedSession<T>(

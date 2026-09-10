@@ -2,6 +2,7 @@ import { NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { vi } from 'vitest';
 import { PrismaService } from '../prisma.service';
+import { Clock } from '../time/clock';
 import { StudentStatusFilter } from './dto/list-students-query.dto';
 import { StudentsService } from './students.service';
 
@@ -25,6 +26,11 @@ describe('StudentsService', () => {
     },
     studentAccess: { updateMany: vi.fn() },
     session: { updateMany: vi.fn() },
+    studentActivePeriod: {
+      count: vi.fn(),
+      create: vi.fn(),
+      updateMany: vi.fn(),
+    },
     auditLog: { create: vi.fn() },
   };
   const prisma = {
@@ -46,13 +52,21 @@ describe('StudentsService', () => {
     tx.studentAccess.updateMany.mockResolvedValue({ count: 2 });
     tx.session.updateMany.mockResolvedValue({ count: 1 });
     tx.auditLog.create.mockResolvedValue({});
-    service = new StudentsService(prisma as unknown as PrismaService);
+    tx.studentActivePeriod.count.mockResolvedValue(0);
+    tx.studentActivePeriod.create.mockResolvedValue({});
+    tx.studentActivePeriod.updateMany.mockResolvedValue({ count: 1 });
+    service = new StudentsService(
+      prisma as unknown as PrismaService,
+      {
+        now: () => now,
+      } as Clock,
+    );
   });
 
   it('creates an active student and audit atomically with explicit fields', async () => {
     expect(await service.create(student.fullName, 'admin-1')).toEqual(student);
     expect(tx.student.create).toHaveBeenCalledWith({
-      data: { fullName: student.fullName },
+      data: { fullName: student.fullName, createdAt: now, updatedAt: now },
       select: expect.objectContaining({
         id: true,
         fullName: true,
@@ -143,6 +157,14 @@ describe('StudentsService', () => {
     const inactive = { ...student, isActive: false };
     tx.student.update.mockResolvedValue(inactive);
     expect(await service.deactivate(student.id, 'admin-1')).toEqual(inactive);
+    expect(tx.studentActivePeriod.updateMany).toHaveBeenCalledWith({
+      where: {
+        studentId: student.id,
+        validFrom: { lte: now },
+        validUntil: null,
+      },
+      data: { validUntil: now },
+    });
     expect(tx.studentAccess.updateMany).toHaveBeenCalledWith({
       where: {
         studentId: student.id,
@@ -159,7 +181,11 @@ describe('StudentsService', () => {
     expect(tx.auditLog.create).toHaveBeenCalledWith({
       data: expect.objectContaining({
         action: 'STUDENT_DEACTIVATED',
-        metadata: { revokedPendingAccesses: 2, revokedSessions: 1 },
+        metadata: {
+          effectiveAt: now.toISOString(),
+          revokedPendingAccesses: 2,
+          revokedSessions: 1,
+        },
       }),
     });
   });
@@ -169,6 +195,7 @@ describe('StudentsService', () => {
     tx.student.findUnique.mockResolvedValue(inactive);
     expect(await service.deactivate(student.id, 'admin-1')).toEqual(inactive);
     expect(tx.student.update).not.toHaveBeenCalled();
+    expect(tx.studentActivePeriod.updateMany).not.toHaveBeenCalled();
     expect(tx.studentAccess.updateMany).not.toHaveBeenCalled();
     expect(tx.session.updateMany).not.toHaveBeenCalled();
     expect(tx.auditLog.create).not.toHaveBeenCalled();
@@ -179,6 +206,12 @@ describe('StudentsService', () => {
     tx.student.findUnique.mockResolvedValue(inactive);
     tx.student.update.mockResolvedValue(student);
     expect(await service.reactivate(student.id, 'admin-1')).toEqual(student);
+    expect(tx.studentActivePeriod.count).toHaveBeenCalledWith({
+      where: { studentId: student.id, validUntil: null },
+    });
+    expect(tx.studentActivePeriod.create).toHaveBeenCalledWith({
+      data: { studentId: student.id, validFrom: now },
+    });
     expect(tx.student.update).toHaveBeenCalledWith({
       where: { id: student.id },
       data: { isActive: true },
@@ -187,7 +220,10 @@ describe('StudentsService', () => {
     expect(tx.studentAccess.updateMany).not.toHaveBeenCalled();
     expect(tx.session.updateMany).not.toHaveBeenCalled();
     expect(tx.auditLog.create).toHaveBeenCalledWith({
-      data: expect.objectContaining({ action: 'STUDENT_REACTIVATED' }),
+      data: expect.objectContaining({
+        action: 'STUDENT_REACTIVATED',
+        metadata: { effectiveAt: now.toISOString() },
+      }),
     });
 
     vi.clearAllMocks();
@@ -195,6 +231,7 @@ describe('StudentsService', () => {
     tx.student.findUnique.mockResolvedValue(student);
     expect(await service.reactivate(student.id, 'admin-1')).toEqual(student);
     expect(tx.student.update).not.toHaveBeenCalled();
+    expect(tx.studentActivePeriod.create).not.toHaveBeenCalled();
     expect(tx.auditLog.create).not.toHaveBeenCalled();
   });
 });

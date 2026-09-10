@@ -1,6 +1,6 @@
 # Modelo de dominio
 
-Fuente: apps/backend/prisma/schema.prisma y sus seis migraciones. Tener una tabla de etapas futuras no significa tener su módulo de negocio.
+Fuente: apps/backend/prisma/schema.prisma y sus siete migraciones. Tener una tabla de etapas futuras no significa tener su módulo de negocio.
 
 ## Modelos actuales
 
@@ -8,6 +8,7 @@ Fuente: apps/backend/prisma/schema.prisma y sus seis migraciones. Tener una tabl
 | ------------- | --------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
 | Admin         | Identidad administrativa; email único y passwordHash.                                                     | IMPLEMENTED: seed explícito, login y guard.                                                       |
 | Student       | Identidad de alumna con estado activo y relaciones históricas.                                            | IMPLEMENTED: CRUD administrativo sin borrado, búsqueda, paginación, desactivación y reactivación. |
+| StudentActivePeriod | Intervalos semiabiertos de actividad de una Student.                                                 | IMPLEMENTED: ciclos múltiples, límites exactos, no solapamiento y proyección actual coherente.     |
 | StudentAccess | Pertenece a Student. tokenHash único, estado, expiración, activación y revocación.                        | IMPLEMENTED: emitir, consumir una vez y revocar un pendiente.                                     |
 | Plan          | Oferta reusable con nombre, descripción, classCount, precio actual, ARS e isActive.                       | IMPLEMENTED: crear, listar, editar y activar/desactivar sin DELETE.                               |
 | Subscription  | Contrato con Student/Plan, snapshot, precio acordado, período y estado operativo.                         | IMPLEMENTED: alta, consulta, cancelación, solapamiento prohibido y finanzas derivadas.             |
@@ -32,7 +33,8 @@ Fuente: apps/backend/prisma/schema.prisma y sus seis migraciones. Tener una tabl
 - Revocar un acceso exige que corresponda a la alumna indicada. Repetir la revocación no reemplaza su fecha ni genera otro evento.
 - Los estados y timestamps de StudentAccess se mantienen mediante servicios; no existen CHECKs de coherencia entre esos campos.
 - Es válido tener varios enlaces pendientes de una alumna. Emitir otro no invalida los anteriores. Revocarlos individualmente conserva semántica e historial.
-- Student.isActive es la fuente de verdad operativa. Desactivar revoca sesiones Student y accesos pendientes en una transacción, sin borrar relaciones históricas. Reactivar no restaura credenciales anteriores.
+- StudentActivePeriod es la fuente temporal de actividad; `Student.isActive` es su proyección actual. Desactivar cierra el período abierto y revoca sesiones Student y accesos pendientes en una transacción. Reactivar abre un período nuevo sin restaurar estados anteriores.
+- Los períodos usan `[validFrom, validUntil)`. PostgreSQL controla límites, exclusión de solapamientos, un único período abierto, FK RESTRICT y coherencia diferida entre el período abierto y `Student.isActive`.
 - No existe borrado físico de Student por API. Las mutaciones de una misma Student se serializan con bloqueo de fila y generan auditoría solo cuando cambia el estado.
 - Plan exige nombre no vacío, classCount positivo, precio no negativo y moneda ARS también mediante CHECK. Desactivarlo impide nuevos contratos y no cambia snapshots previos.
 - Subscription copia planName, classAllowance, agreedPrice y currency. El período es [periodStart, periodEnd), debe ser creciente y no puede superponerse con otra Subscription ACTIVE de la misma Student. La exclusión GiST es la defensa final.
@@ -50,21 +52,21 @@ Fuente: apps/backend/prisma/schema.prisma y sus seis migraciones. Tener una tabl
 - PRESENT y ABSENT consumen una clase. `usedClasses` se cuenta sobre Attendance y `remainingClasses` se deriva sin persistir contadores ni devolver negativos. Si used supera allowance se expone `OVERCONSUMED`.
 - La ventana es `[startAt - openBefore, endAt + closeAfter)`. El reloj del backend decide. CANCELLED nunca admite Attendance.
 - El reconciliador crea las ausencias faltantes y cierra la ClassSession en una transacción. Student, Subscription y ClassSession se bloquean; la unicidad PostgreSQL es la defensa final entre workers.
+- Expected Students y reconciliación evalúan la actividad de Student en `ClassSession.startAt`. PRESENT agrega la exigencia de actividad actual para no autorizar una sesión revocada.
 
 ## Fuentes de verdad
 
 Auth usa hashes y registros Session/StudentAccess persistidos, no cookies como base de datos. La cookie solo transporta un secreto opaco. El contrato vive en el snapshot de Subscription; el dinero recibido vive en Payment y el saldo se deriva. El consumo de clases vive en Attendance y también se deriva.
 
-Schedule es fuente de recurrencia y capacidad habitual para generaciones futuras. ClassSession es el snapshot y la capacidad efectiva de una fecha ya creada. Enrollment es la pertenencia temporal al Schedule respaldada por una Subscription. Las alumnas esperadas para una ClassSession se derivan de esos tres registros y de la vigencia del contrato. Attendance conserva qué contrato consumió cada clase; no hay tabla de reservas ni contador mutable.
+Schedule es fuente de recurrencia y capacidad habitual para generaciones futuras. ClassSession es el snapshot y la capacidad efectiva de una fecha ya creada. Enrollment es la pertenencia temporal al Schedule respaldada por una Subscription. Las alumnas esperadas para una ClassSession se derivan de esos tres registros, de la vigencia del contrato y de StudentActivePeriod en `startAt`. Attendance conserva qué contrato consumió cada clase; no hay tabla de reservas ni contador mutable.
 
 ## Invariantes PLANNED y riesgos antes de negocio
 
 - Implementar Recovery sin reescribir la ausencia original ni ocultar el consumo histórico.
 - Revisar qué hacer ante una recuperación revocada cuando ya existe UNIQUE(originalAbsenceId); no sobrescribir historia sin una regla.
-- Definir una historia temporal de activación de Student si el producto necesita decidir, luego de un downtime, si estaba activa exactamente al cierre de una clase. Hoy la política usa el estado actual y omite a una Student inactiva.
 
 ## Índices y migraciones
 
 Los índices actuales cubren hashes únicos, identidad/rol y expiración de sesión, períodos de una alumna, claves de relaciones y consultas de auditoría. No se agregaron índices especulativos en Fase 0.
 
-Etapa 1 agregó `Student.isActive`. Etapa 2 agregó `20260904090000_commercial_core`: enums, snapshots, autores, constraints, índices de consulta, idempotencia y exclusión temporal con `btree_gist`. Etapa 3 agregó `20260904180000_scheduling_core`: fechas locales, snapshots UTC, cancelación trazable, FK compuesta, exclusión de Enrollment y clave de generación. Etapa 4 agregó `20260904220000_attendance_engine`: contrato consumido, origen, cierre, CHECKs, índices y FK RESTRICT. Aborta ante Attendance, Recovery o ClassSession COMPLETED previas porque su significado no puede inferirse sin inventar historia.
+Etapa 1 agregó `Student.isActive`. Etapa 2 agregó `20260904090000_commercial_core`: enums, snapshots, autores, constraints, índices de consulta, idempotencia y exclusión temporal con `btree_gist`. Etapa 3 agregó `20260904180000_scheduling_core`: fechas locales, snapshots UTC, cancelación trazable, FK compuesta, exclusión de Enrollment y clave de generación. Etapa 4 agregó `20260904220000_attendance_engine`: contrato consumido, origen, cierre, CHECKs, índices y FK RESTRICT. Etapa 4.1 agregó `20260904233000_historical_student_eligibility`: períodos activos, reconstrucción segura, exclusión temporal, proyección coherente y guard ante historia ambigua.

@@ -22,6 +22,7 @@
     "test:migration:commercial": "node test/verify-commercial-migration.mjs",
     "test:migration:scheduling": "node test/verify-scheduling-migration.mjs",
     "test:migration:attendance": "node test/verify-attendance-migration.mjs",
+    "test:migration:student-history": "node test/verify-student-status-history-migration.mjs",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:studio": "prisma studio",

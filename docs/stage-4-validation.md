@@ -1,5 +1,7 @@
 # Validación de Etapa 4
 
+> La limitación histórica documentada al cierre de esta etapa fue resuelta por la Etapa 4.1; ver `stage-4.1-validation.md`.
+
 Fecha: 2026-09-04. Entorno: Node.js 24.20.0 y PostgreSQL 16.15 de pruebas en schemas aleatorios.
 
 ## Resultado

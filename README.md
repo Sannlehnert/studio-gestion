@@ -10,6 +10,7 @@ Sistema web para que una profesora gestione sus clases y alumnas, con énfasis e
 - Plans + Subscriptions + Payments: COMPLETE
 - Schedules + Enrollments + ClassSessions: COMPLETE
 - Attendance Engine + Absences: COMPLETE
+- Historical Student Eligibility: COMPLETE
 - Frontend: NOT STARTED
 
 El cierre y sus límites están en [validación de Fase 0](docs/phase-0-validation.md). La existencia de modelos Prisma de negocio no implica que tengan endpoints implementados.
@@ -103,9 +104,10 @@ Para E2E, copiar apps/backend/.env.test.example a apps/backend/.env.test y estab
     npm run test:migration:commercial
     npm run test:migration:scheduling
     npm run test:migration:attendance
+    npm run test:migration:student-history
     npm run test:e2e:backend
 
-El contenedor usa PostgreSQL 16, puerto local 55432 y datos efímeros. Los verificadores cubren Students, el núcleo comercial, scheduling y Attendance desde cero, como upgrade y ante histórico incompleto. El runner E2E crea otro schema aleatorio, aplica todas las migraciones, corre Auth, Students y negocio, y elimina sólo ese schema.
+El contenedor usa PostgreSQL 16, puerto local 55432 y datos efímeros. Los verificadores cubren Students, el núcleo comercial, scheduling, Attendance e historial temporal desde cero, como upgrade y ante histórico incompleto. El runner E2E crea otro schema aleatorio, aplica todas las migraciones, corre Auth, Students y negocio, y elimina sólo ese schema.
 
 Para detener únicamente la base de pruebas:
 

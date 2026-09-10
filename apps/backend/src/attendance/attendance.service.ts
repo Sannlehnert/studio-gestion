@@ -15,6 +15,7 @@ import {
 import { ClassSessionsService } from '../class-sessions/class-sessions.service';
 import { getSettings } from '../config/env.validation';
 import { PrismaService } from '../prisma.service';
+import { StudentStatusHistoryService } from '../students/student-status-history.service';
 import { databaseDateToLocalDate } from '../time/business-time';
 import { CLOCK, Clock } from '../time/clock';
 import {
@@ -63,6 +64,7 @@ export class AttendanceService {
     private readonly classSessions: ClassSessionsService,
     config: ConfigService,
     @Inject(CLOCK) private readonly clock: Clock,
+    private readonly studentStatusHistory: StudentStatusHistoryService,
   ) {
     const settings = getSettings(config);
     this.openBeforeMinutes = settings.attendanceOpenBeforeMinutes;
@@ -200,49 +202,72 @@ export class AttendanceService {
     const now = this.clock.now();
     return this.prisma.$transaction(
       async (tx) => {
-        const rows = await tx.$queryRaw<UpcomingRow[]>(Prisma.sql`
-          SELECT
-            cs."id", cs."scheduleId", cs."occurrenceDate", cs."startAt",
-            cs."endAt", cs."status", cs."attendanceClosedAt",
-            e."subscriptionId"
-          FROM "ClassSession" cs
-          JOIN "Enrollment" e ON e."scheduleId" = cs."scheduleId"
-          JOIN "Subscription" s
-            ON s."id" = e."subscriptionId" AND s."studentId" = e."studentId"
-          WHERE e."studentId" = ${studentId}
-            AND e."validFrom" <= cs."occurrenceDate"
-            AND e."validUntil" > cs."occurrenceDate"
-            AND s."periodStart" <= cs."startAt"
-            AND s."periodEnd" > cs."startAt"
-            AND (
-              s."status" = 'ACTIVE'
-              OR (s."status" = 'CANCELLED' AND s."cancelledAt" > cs."startAt")
-            )
-            AND cs."status" = 'SCHEDULED'
-            AND cs."endAt" + (${this.closeAfterMinutes} * INTERVAL '1 minute') > ${now}
-          ORDER BY cs."startAt" ASC, cs."id" ASC
-          LIMIT ${query.limit}
-        `);
         const items = [];
-        for (const row of rows) {
-          const attendance = await tx.attendance.findUnique({
-            where: {
-              studentId_classSessionId: {
+        const batchSize = Math.max(query.limit, 50);
+        let cursor: { startAt: Date; id: string } | undefined;
+        while (items.length < query.limit) {
+          const rows = await tx.$queryRaw<UpcomingRow[]>(Prisma.sql`
+            SELECT
+              cs."id", cs."scheduleId", cs."occurrenceDate", cs."startAt",
+              cs."endAt", cs."status", cs."attendanceClosedAt",
+              e."subscriptionId"
+            FROM "ClassSession" cs
+            JOIN "Enrollment" e ON e."scheduleId" = cs."scheduleId"
+            JOIN "Subscription" s
+              ON s."id" = e."subscriptionId" AND s."studentId" = e."studentId"
+            WHERE e."studentId" = ${studentId}
+              AND e."validFrom" <= cs."occurrenceDate"
+              AND e."validUntil" > cs."occurrenceDate"
+              AND s."periodStart" <= cs."startAt"
+              AND s."periodEnd" > cs."startAt"
+              AND (
+                s."status" = 'ACTIVE'
+                OR (s."status" = 'CANCELLED' AND s."cancelledAt" > cs."startAt")
+              )
+              AND cs."status" = 'SCHEDULED'
+              AND cs."endAt" + (${this.closeAfterMinutes} * INTERVAL '1 minute') > ${now}
+              ${
+                cursor
+                  ? Prisma.sql`AND (cs."startAt", cs."id") > (${cursor.startAt}, ${cursor.id})`
+                  : Prisma.empty
+              }
+            ORDER BY cs."startAt" ASC, cs."id" ASC
+            LIMIT ${batchSize}
+          `);
+          if (rows.length === 0) break;
+          const last = rows[rows.length - 1];
+          cursor = { startAt: last.startAt, id: last.id };
+          for (const row of rows) {
+            if (
+              !(await this.studentStatusHistory.wasActiveAt(
+                tx,
                 studentId,
-                classSessionId: row.id,
+                row.startAt,
+              ))
+            ) {
+              continue;
+            }
+            const attendance = await tx.attendance.findUnique({
+              where: {
+                studentId_classSessionId: {
+                  studentId,
+                  classSessionId: row.id,
+                },
               },
-            },
-            select: attendanceProjection,
-          });
-          items.push(
-            await this.studentResponse(
-              tx,
-              row,
-              attendance,
-              row.subscriptionId,
-              now,
-            ),
-          );
+              select: attendanceProjection,
+            });
+            items.push(
+              await this.studentResponse(
+                tx,
+                row,
+                attendance,
+                row.subscriptionId,
+                now,
+              ),
+            );
+            if (items.length === query.limit) break;
+          }
+          if (rows.length < batchSize) break;
         }
         return { items };
       },
@@ -296,12 +321,10 @@ export class AttendanceService {
             ? attendance.status === AttendanceStatus.PRESENT
               ? AdminAttendanceItemState.PRESENT
               : AdminAttendanceItemState.ABSENT
-            : !item.student.isActive
-              ? AdminAttendanceItemState.NOT_REQUIRED_INACTIVE
-              : window.status === AttendanceWindowStatus.UPCOMING ||
-                  window.status === AttendanceWindowStatus.OPEN
-                ? AdminAttendanceItemState.PENDING
-                : AdminAttendanceItemState.UNRESOLVED;
+            : window.status === AttendanceWindowStatus.UPCOMING ||
+                window.status === AttendanceWindowStatus.OPEN
+              ? AdminAttendanceItemState.PENDING
+              : AdminAttendanceItemState.UNRESOLVED;
           return {
             studentId: item.student.id,
             fullName: item.student.fullName,
@@ -387,7 +410,6 @@ export class AttendanceService {
       );
       session = (await this.findSession(tx, classSessionId))!;
       expected = await this.classSessions.findExpectedRecords(tx, session);
-      const activeExpected = expected.filter((item) => item.student.isActive);
       const existing = await tx.attendance.findMany({
         where: { classSessionId },
         select: { studentId: true },
@@ -395,7 +417,7 @@ export class AttendanceService {
       const existingStudents = new Set(existing.map((item) => item.studentId));
       const subscriptions = await tx.subscription.findMany({
         where: {
-          id: { in: activeExpected.map((item) => item.subscriptionId) },
+          id: { in: expected.map((item) => item.subscriptionId) },
         },
         select: { id: true, classAllowance: true },
       });
@@ -414,7 +436,7 @@ export class AttendanceService {
       );
       let absencesCreated = 0;
       let unresolvedAllowance = 0;
-      for (const item of activeExpected) {
+      for (const item of expected) {
         if (existingStudents.has(item.student.id)) continue;
         const current = used.get(item.subscriptionId) ?? 0;
         const allowance = allowances.get(item.subscriptionId) ?? 0;
@@ -456,7 +478,7 @@ export class AttendanceService {
             entityId: classSessionId,
             metadata: {
               absencesCreated,
-              skippedInactive: expected.length - activeExpected.length,
+              historicallyEligible: expected.length,
               unresolvedAllowance,
               completed,
             },

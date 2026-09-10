@@ -5,6 +5,7 @@ import { PaymentsService } from '../src/payments/payments.service';
 import { PlansService } from '../src/plans/plans.service';
 import { PrismaService } from '../src/prisma.service';
 import { SubscriptionsService } from '../src/subscriptions/subscriptions.service';
+import { StudentsService } from '../src/students/students.service';
 import { createAdmin, createTestApp } from './helpers';
 
 describe('Commercial persistence with PostgreSQL (integration)', () => {
@@ -13,6 +14,7 @@ describe('Commercial persistence with PostgreSQL (integration)', () => {
   let plans: PlansService;
   let subscriptions: SubscriptionsService;
   let payments: PaymentsService;
+  let students: StudentsService;
   let actorId: string;
 
   beforeAll(async () => {
@@ -20,6 +22,7 @@ describe('Commercial persistence with PostgreSQL (integration)', () => {
     plans = app.get(PlansService);
     subscriptions = app.get(SubscriptionsService);
     payments = app.get(PaymentsService);
+    students = app.get(StudentsService);
     actorId = (await createAdmin(app, prisma)).admin.id;
   });
 
@@ -280,10 +283,7 @@ describe('Commercial persistence with PostgreSQL (integration)', () => {
 
   it('rejects inactive students before creating a contract', async () => {
     const { student, plan } = await commercialFixture();
-    await prisma.student.update({
-      where: { id: student.id },
-      data: { isActive: false },
-    });
+    await students.deactivate(student.id, actorId);
     await expect(
       subscriptions.create(
         {

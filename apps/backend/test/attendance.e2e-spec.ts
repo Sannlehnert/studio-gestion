@@ -4,6 +4,7 @@ import { AttendanceStatus, Prisma } from '@prisma/client';
 import request from 'supertest';
 import { AttendanceService } from '../src/attendance/attendance.service';
 import { PrismaService } from '../src/prisma.service';
+import { StudentsService } from '../src/students/students.service';
 import { BusinessTimeService } from '../src/time/business-time.service';
 import {
   addLocalDays,
@@ -26,6 +27,7 @@ describe('Attendance API with PostgreSQL (e2e)', () => {
   let prisma: PrismaService;
   let attendance: AttendanceService;
   let businessTime: BusinessTimeService;
+  let students: StudentsService;
   let adminCookie: string;
   let adminId: string;
 
@@ -33,6 +35,7 @@ describe('Attendance API with PostgreSQL (e2e)', () => {
     ({ app, prisma } = await createTestApp());
     attendance = app.get(AttendanceService);
     businessTime = app.get(BusinessTimeService);
+    students = app.get(StudentsService);
     const credentials = await createAdmin(app, prisma);
     adminId = credentials.admin.id;
     adminCookie = sessionCookie(
@@ -48,7 +51,10 @@ describe('Attendance API with PostgreSQL (e2e)', () => {
     const now = new Date();
     const today = businessTime.today();
     const student = await prisma.student.create({
-      data: { fullName: 'API attendance ' + randomUUID() },
+      data: {
+        fullName: 'API attendance ' + randomUUID(),
+        createdAt: new Date(now.getTime() - 14 * 86_400_000),
+      },
     });
     const plan = await prisma.plan.create({
       data: {
@@ -142,12 +148,19 @@ describe('Attendance API with PostgreSQL (e2e)', () => {
       dateFrom: today,
       dateTo: today,
     }).expect(200);
-    const classSession = await prisma.classSession.findUniqueOrThrow({
+    const generatedClassSession = await prisma.classSession.findUniqueOrThrow({
       where: {
         scheduleId_occurrenceDate: {
           scheduleId: schedule.body.id,
           occurrenceDate: localDateToDatabaseDate(today),
         },
+      },
+    });
+    const classSession = await prisma.classSession.update({
+      where: { id: generatedClassSession.id },
+      data: {
+        startAt: new Date(now.getTime() + 5 * 60_000),
+        endAt: new Date(now.getTime() + 10 * 60_000),
       },
     });
     return {
@@ -457,10 +470,7 @@ describe('Attendance API with PostgreSQL (e2e)', () => {
 
     const inactive = await fixture();
     const inactiveCookie = await studentCookie(inactive.student.id);
-    await prisma.student.update({
-      where: { id: inactive.student.id },
-      data: { isActive: false },
-    });
+    await students.deactivate(inactive.student.id, adminId);
     await postAttendance(inactive.classSession.id, inactiveCookie).expect(401);
 
     const cancelledSubscription = await fixture();

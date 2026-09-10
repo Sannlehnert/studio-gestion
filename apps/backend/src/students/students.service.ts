@@ -1,4 +1,9 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  Inject,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import {
   Prisma,
   SessionRole,
@@ -6,6 +11,7 @@ import {
   StudentAccessStatus,
 } from '@prisma/client';
 import { PrismaService } from '../prisma.service';
+import { CLOCK, Clock } from '../time/clock';
 import {
   ListStudentsQueryDto,
   StudentStatusFilter,
@@ -23,12 +29,16 @@ type StudentView = Pick<Student, keyof typeof studentProjection>;
 
 @Injectable()
 export class StudentsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Inject(CLOCK) private readonly clock: Clock,
+  ) {}
 
   async create(fullName: string, actorId: string): Promise<StudentView> {
     return this.prisma.$transaction(async (tx) => {
+      const now = this.clock.now();
       const student = await tx.student.create({
-        data: { fullName },
+        data: { fullName, createdAt: now, updatedAt: now },
         select: studentProjection,
       });
       await tx.auditLog.create({
@@ -136,7 +146,20 @@ export class StudentsService {
       if (!current) throw new NotFoundException('Alumna no encontrada');
       if (!current.isActive) return current;
 
-      const now = new Date();
+      const now = this.clock.now();
+      const closedPeriod = await tx.studentActivePeriod.updateMany({
+        where: {
+          studentId: id,
+          validFrom: { lte: now },
+          validUntil: null,
+        },
+        data: { validUntil: now },
+      });
+      if (closedPeriod.count !== 1) {
+        throw new ConflictException(
+          'El historial operativo de la alumna es inconsistente',
+        );
+      }
       const student = await tx.student.update({
         where: { id },
         data: { isActive: false },
@@ -162,6 +185,7 @@ export class StudentsService {
           entity: 'Student',
           entityId: id,
           metadata: {
+            effectiveAt: now.toISOString(),
             revokedPendingAccesses: pendingAccesses.count,
             revokedSessions: sessions.count,
           },
@@ -180,6 +204,19 @@ export class StudentsService {
       });
       if (!current) throw new NotFoundException('Alumna no encontrada');
       if (current.isActive) return current;
+      const now = this.clock.now();
+      if (
+        (await tx.studentActivePeriod.count({
+          where: { studentId: id, validUntil: null },
+        })) !== 0
+      ) {
+        throw new ConflictException(
+          'El historial operativo de la alumna es inconsistente',
+        );
+      }
+      await tx.studentActivePeriod.create({
+        data: { studentId: id, validFrom: now },
+      });
       const student = await tx.student.update({
         where: { id },
         data: { isActive: true },
@@ -191,6 +228,7 @@ export class StudentsService {
           action: 'STUDENT_REACTIVATED',
           entity: 'Student',
           entityId: id,
+          metadata: { effectiveAt: now.toISOString() },
         },
       });
       return student;

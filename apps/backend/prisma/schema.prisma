@@ -80,6 +80,19 @@ model Student {
   attendances   Attendance[]
   recoveries    Recovery[]
   accessTokens  StudentAccess[]
+  activePeriods StudentActivePeriod[]
+}
+
+model StudentActivePeriod {
+  id         String    @id @default(uuid())
+  studentId  String
+  validFrom  DateTime
+  validUntil DateTime?
+  createdAt  DateTime  @default(now())
+
+  student Student @relation(fields: [studentId], references: [id], onDelete: Restrict)
+
+  @@index([studentId, validFrom, validUntil])
 }
 
 model StudentAccess {
@@ -131,9 +144,9 @@ model Subscription {
   attendances Attendance[]
   recoveries  Recovery[]
 
+  @@unique([id, studentId])
   @@index([studentId, status, periodStart, periodEnd])
   @@index([planId])
-  @@unique([id, studentId])
 }
 
 model Payment {

@@ -80,7 +80,7 @@ Subscription concurrentes se serializan por Student y terminan protegidas por `S
 
 Scheduling no acepta IDs internos, estado, capacidad ni timestamps fuera del DTO específico de cada caso de uso. La FK compuesta impide asignar a una Student una Subscription ajena incluso fuera del servicio. Los cupos se serializan por Schedule; PostgreSQL rechaza Enrollment solapados y clases duplicadas. La generación sólo usa Schedules activos y la cancelación exige Admin, motivo y auditoría. Las horas recurrentes nunca dependen del reloj o timezone del navegador.
 
-Attendance no acepta `studentId`, `subscriptionId`, estado, origen, timestamp ni contadores. StudentGuard fija la identidad y vuelve a comprobar `Student.isActive`; una consulta Student exige una Attendance propia o pertenencia temporal. El servicio parametriza también su consulta SQL de próximas clases. CSRF cubre el POST y un límite configurable de 20 por minuto reduce abuso sin sustituir UNIQUE, FKs, CHECKs ni locks.
+Attendance no acepta `studentId`, `subscriptionId`, estado, origen, timestamp ni contadores. StudentGuard fija la identidad y vuelve a comprobar `Student.isActive`; la elegibilidad contractual se deriva con StudentActivePeriod en `ClassSession.startAt`. Una consulta Student exige una Attendance propia o pertenencia temporal. El servicio parametriza también su consulta SQL de próximas clases. CSRF cubre el POST y un límite configurable de 20 por minuto reduce abuso sin sustituir UNIQUE, FKs, CHECKs ni locks.
 
 Las relaciones históricas de Attendance y las relaciones Student/Subscription de Recovery usan `ON DELETE RESTRICT`. El AuditLog de PRESENT identifica a la Student; el cierre automático usa actor nulo y metadata agregada, sin inventar un Admin ni guardar cookies o tokens.
 

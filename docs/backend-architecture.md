@@ -13,7 +13,7 @@ Cada módulo de negocio contiene controllers administrativos delgados, DTOs y un
 - AuthModule: tokens, contraseñas, sesiones, cookies, login/activación/logout y guards.
 - AdminModule: comprobación de permisos y administración de StudentAccess.
 - StudentModule: únicamente comprobación de permisos de alumna; no es StudentsModule de negocio.
-- StudentsModule: gestión administrativa de Student, estado, paginación y auditoría.
+- StudentsModule: gestión administrativa de Student, períodos activos, proyección actual, paginación y auditoría.
 - PlansModule: catálogo mutable, precio referencial y activación.
 - SubscriptionsModule: contratos inmutables, snapshot, períodos, cancelación y resumen financiero.
 - PaymentsModule: registro idempotente, listados y anulación trazable.
@@ -46,7 +46,9 @@ La actualización condicional de StudentAccess serializa consumo y revocación s
 
 Las operaciones de cupo bloquean Schedule antes de leer Enrollment o cambiar una capacidad. La generación toma bloqueos compartidos de los Schedules activos y usa inserción con conflicto más UNIQUE(scheduleId, occurrenceDate). Así, edición, inscripción y generación observan un snapshot compatible sin necesitar locks distribuidos.
 
-Attendance toma el reloj desde `CLOCK`, bloquea ClassSession y luego Student/Subscription en orden estable, vuelve a validar elegibilidad y ventana, y persiste Attendance más AuditLog en la misma transacción. El reconciliador usa las mismas filas y la unicidad final; `attendanceClosedAt` permite recuperar cierres omitidos después de downtime.
+Students toma el reloj desde `CLOCK` después de bloquear la fila. Desactivar cierra el período activo; reactivar abre otro. El cambio de período, `Student.isActive`, revocaciones y AuditLog comparte una transacción, y PostgreSQL comprueba la coherencia de la proyección al commit.
+
+Attendance toma el reloj desde `CLOCK`, bloquea ClassSession y luego Student/Subscription en orden estable, vuelve a validar elegibilidad histórica y ventana, y persiste Attendance más AuditLog en la misma transacción. El reconciliador usa `ClassSession.startAt` contra StudentActivePeriod, las mismas filas y la unicidad final; `attendanceClosedAt` permite recuperar cierres omitidos después de downtime sin depender del estado actual.
 
 ## Contratos y errores
 

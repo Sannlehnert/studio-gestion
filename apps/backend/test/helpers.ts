@@ -6,14 +6,17 @@ import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma.service';
 import { PasswordService } from '../src/auth/services/password.service';
 import { configureApp } from '../src/common/http/configure-app';
+import { CLOCK, Clock } from '../src/time/clock';
 import { assertTestDatabase } from './database-safety';
 
 export const FRONTEND_ORIGIN = 'http://localhost:5173';
-export async function createTestApp() {
+export async function createTestApp(options?: { clock?: Clock }) {
   assertTestDatabase();
-  const module = await Test.createTestingModule({
+  const builder = Test.createTestingModule({
     imports: [AppModule],
-  }).compile();
+  });
+  if (options?.clock) builder.overrideProvider(CLOCK).useValue(options.clock);
+  const module = await builder.compile();
   const app = module.createNestApplication<NestExpressApplication>({
     bodyParser: false,
     logger: false,

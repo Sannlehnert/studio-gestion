@@ -4,7 +4,7 @@ Studio Gestión es un sistema real para una profesora que alquila una sala y adm
 
 ## Alcance y estado
 
-- IMPLEMENTED: foundation, Auth, Students, Plans, Subscriptions, Payments, Schedules, Enrollments, ClassSessions y Attendance. La evidencia está en las validaciones de [Fase 0](phase-0-validation.md), [Etapa 1](stage-1-validation.md), [Etapa 2](stage-2-validation.md), [Etapa 3](stage-3-validation.md) y [Etapa 4](stage-4-validation.md).
+- IMPLEMENTED: foundation, Auth, Students, Plans, Subscriptions, Payments, Schedules, Enrollments, ClassSessions, Attendance e historial temporal de actividad. La evidencia está en las validaciones de [Fase 0](phase-0-validation.md), [Etapa 1](stage-1-validation.md), [Etapa 2](stage-2-validation.md), [Etapa 3](stage-3-validation.md), [Etapa 4](stage-4-validation.md) y [Etapa 4.1](stage-4.1-validation.md).
 - PLANNED: QR dinámico y recuperaciones.
 - NOT STARTED: frontend. StudentModule singular aporta la ruta de permisos de alumna; StudentsModule contiene su gestión administrativa.
 - Fuera del MVP: múltiples profesores/salas/sedes, reservas, WhatsApp, pagos online, notificaciones y SaaS.
@@ -42,6 +42,7 @@ No introducir microservicios, CQRS, event sourcing ni repositorios ceremoniales.
 - Etapa 2: Plans, Subscriptions y Payments — IMPLEMENTED, con snapshots, pagos parciales, anulaciones y concurrencia protegida.
 - Etapa 3: Schedules, Enrollments y ClassSessions — IMPLEMENTED.
 - Etapa 4: Attendance Engine y Absences — IMPLEMENTED, con consumo derivado y reconciliación recuperable.
+- Etapa 4.1: Historical Student Eligibility — IMPLEMENTED, con ciclos temporales y reconciliación histórica.
 - Próxima etapa evaluada: Dynamic QR Attendance Challenge. Todavía no iniciada.
 
 No avanzar de etapa automáticamente. Cualquier etapa necesita lint, typecheck, tests pertinentes y build en verde. No borrar tests fallidos ni modificar producción solo para satisfacer mocks.

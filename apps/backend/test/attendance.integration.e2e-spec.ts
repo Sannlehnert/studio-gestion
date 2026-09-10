@@ -48,6 +48,7 @@ describe('Attendance persistence with PostgreSQL (integration)', () => {
       data: {
         fullName: 'Asistencia ' + randomUUID(),
         isActive: options?.isActive ?? true,
+        createdAt: new Date(now.getTime() - 14 * 86_400_000),
       },
     });
     const plan = await prisma.plan.create({
