@@ -18,7 +18,8 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
-import { EmptyBodyDto } from '../auth/dto/auth-responses.dto';
+import { MarkPresentDto } from './dto/attendance-challenge.dto';
+import { AttendanceRateGuard } from './attendance-rate.guard';
 import { StudentGuard } from '../auth/guards/student.guard';
 import { AuthenticatedUser } from '../auth/types/auth.types';
 import { AttendanceService } from './attendance.service';
@@ -48,18 +49,23 @@ export class StudentAttendanceController {
   }
 
   @Post('class-sessions/:classSessionId/attendance')
+  @UseGuards(AttendanceRateGuard)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
-    summary: 'Registrar PRESENT con identidad y reloj del backend',
+    summary: 'Registrar PRESENT propio con challenge QR vigente',
   })
   @ApiParam({ name: 'classSessionId', format: 'uuid' })
   @ApiResponse({ status: 200, type: MarkAttendanceResponseDto })
   mark(
     @Param('classSessionId', ParseUUIDPipe) classSessionId: string,
     @CurrentUser() student: AuthenticatedUser,
-    @Body() _body: EmptyBodyDto,
+    @Body() body: MarkPresentDto,
   ) {
-    return this.attendance.markPresent(classSessionId, student.id);
+    return this.attendance.markPresent(
+      classSessionId,
+      student.id,
+      body.challenge,
+    );
   }
 
   @Get('class-sessions/:classSessionId/attendance')

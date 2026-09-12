@@ -1,6 +1,6 @@
 # Modelo de dominio
 
-Fuente: apps/backend/prisma/schema.prisma y sus siete migraciones. Tener una tabla de etapas futuras no significa tener su módulo de negocio.
+Fuente: apps/backend/prisma/schema.prisma y sus ocho migraciones. Tener una tabla de etapas futuras no significa tener su módulo de negocio.
 
 ## Modelos actuales
 
@@ -17,6 +17,7 @@ Fuente: apps/backend/prisma/schema.prisma y sus siete migraciones. Tener una tab
 | ClassSession  | Clase concreta con fecha de recurrencia, instantes UTC, capacidad, cancelación y cierre de asistencia.     | IMPLEMENTED: generación, consulta, excepciones, cancelación y reconciliación idempotente.           |
 | Enrollment    | Vincula Student, Subscription y Schedule durante un intervalo local semiabierto.                           | IMPLEMENTED: alta, listados, finalización y cambio de horario histórico.                           |
 | Attendance    | Vincula Student, Subscription y ClassSession; estado, origen y recordedAt.                                | IMPLEMENTED: PRESENT de Student, ABSENT de sistema, consultas y consumo derivado.                  |
+| AttendanceChallenge | Secreto efímero representado sólo por hash, ligado a ClassSession y Admin emisor. | IMPLEMENTED: emisión, rotación, validación, revocación por cancelación y limpieza acotada. |
 | Recovery      | Vincula Student, Subscription, ausencia original y sesión destino.                                        | PLANNED: autorización, uso, vencimiento y revocación.                                             |
 | Session       | userId + rol, tokenHash único, expiración, revocación y lastSeenAt.                                       | IMPLEMENTED: creación, validación y logout.                                                       |
 | AuditLog      | actorId opcional, acción, entidad, ID, metadata JSON y fecha.                                             | IMPLEMENTED: eventos Auth, Students y núcleo comercial. Consulta administrativa aún no expuesta.  |
@@ -70,3 +71,13 @@ Schedule es fuente de recurrencia y capacidad habitual para generaciones futuras
 Los índices actuales cubren hashes únicos, identidad/rol y expiración de sesión, períodos de una alumna, claves de relaciones y consultas de auditoría. No se agregaron índices especulativos en Fase 0.
 
 Etapa 1 agregó `Student.isActive`. Etapa 2 agregó `20260904090000_commercial_core`: enums, snapshots, autores, constraints, índices de consulta, idempotencia y exclusión temporal con `btree_gist`. Etapa 3 agregó `20260904180000_scheduling_core`: fechas locales, snapshots UTC, cancelación trazable, FK compuesta, exclusión de Enrollment y clave de generación. Etapa 4 agregó `20260904220000_attendance_engine`: contrato consumido, origen, cierre, CHECKs, índices y FK RESTRICT. Etapa 4.1 agregó `20260904233000_historical_student_eligibility`: períodos activos, reconstrucción segura, exclusión temporal, proyección coherente y guard ante historia ambigua.
+
+## Challenge de Attendance (Etapa 5)
+
+AttendanceChallenge almacena id, generation, classSessionId, tokenHash, createdAt, expiresAt, revokedAt y createdByAdminId. El secreto nunca se guarda. generation usa una secuencia BIGINT para ordenar emisiones incluso si ocurren en el mismo milisegundo; no es el secreto ni se expone por API.
+
+La migración 20260910120000_attendance_challenge es aditiva: conserva Attendance y el historial previo. PostgreSQL exige hash único con formato hexadecimal de 64 caracteres, expiresAt > createdAt, revokedAt nulo o >= createdAt y FKs RESTRICT a ClassSession/Admin. Índice por ClassSession/generation para rotación y limpieza local, además del unique del hash y la PK. No necesita índice global de expiry porque no se implementó un barrido global.
+
+Emisión y PRESENT bloquean la ClassSession. La emisión deja como máximo dos challenges no revocados; uno anterior conserva su expiry original. El tercero desplaza al más antiguo. El límite del conjunto lo garantiza el protocolo transaccional con bloqueo PostgreSQL, no el rate limit ni un CHECK basado en el reloj. Escrituras externas que omitan ese protocolo no están autorizadas.
+
+Cancelar revoca los challenges en la misma transacción. PRESENT siempre valida el estado y la ventana actuales, incluso si cambió el horario de la clase. Repetir PRESENT exige challenge vigente y no vuelve a consumir allowance. Ver [QR](attendance-qr.md).

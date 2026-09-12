@@ -61,7 +61,8 @@ Prefijo /api/v1. Los endpoints usan DTOs estrictos y OpenAPI del backend; no dup
 | GET /api/v1/admin/class-sessions/:id/attendance                | ADMIN                               | 200, expected/present/absent/pending y ventana         |
 | GET /api/v1/admin/subscriptions/:id/class-summary              | ADMIN                               | 200, allowance y consumo derivado                      |
 | GET /api/v1/student/class-sessions/upcoming                    | STUDENT                             | 200, próximas clases propias y ventana                 |
-| POST /api/v1/student/class-sessions/:id/attendance             | STUDENT                             | 200, crea o devuelve PRESENT propio                    |
+| POST /api/v1/student/class-sessions/:id/attendance             | STUDENT                             | 200, crea o devuelve PRESENT propio con challenge vigente |
+| POST /api/v1/admin/class-sessions/:id/qr-challenge | ADMIN | 201, emite challenge opaco y expiresAt |
 | GET /api/v1/student/class-sessions/:id/attendance              | STUDENT                             | 200, estado propio sin exponer otras alumnas           |
 | GET /api/v1/student/subscriptions/:id/class-summary            | STUDENT propietaria                 | 200, allowance y consumo propio                        |
 
@@ -80,7 +81,7 @@ Swagger de desarrollo: /api/docs; JSON: /api/docs-json. Deshabilitados en produc
 - Schedule recibe día ISO 1–7, horas `HH:mm` y capacidad 1–1000. No recibe minutos internos, IDs, estado ni timestamps.
 - Enrollment recibe IDs de Student/Subscription/Schedule y fechas locales `YYYY-MM-DD`; `validUntil` es exclusivo. No existe PATCH genérico.
 - La generación admite un rango local inclusivo de hasta 366 días. Las excepciones horarias reciben ISO 8601 con offset o `Z`; cancelar exige motivo.
-- Marcar Attendance recibe body vacío. Student, Subscription, estado, origen, timestamp y totales se derivan de sesión, dominio, base y reloj del backend. `upcoming.limit` admite 1–20.
+- Marcar Attendance recibe únicamente `{ challenge }`, obligatorio, string opaco de 47 caracteres. Student, Subscription, estado, origen, timestamp y totales se derivan de sesión, dominio, base y reloj del backend. `upcoming.limit` admite 1–20.
 
 ## Respuestas y errores
 
@@ -116,7 +117,7 @@ Logout y revocación de un pendiente ya revocado son idempotentes. También lo s
 
 Las fechas de revocación no se reemplazan al repetir el pedido. Los eventos AuditLog de éxito se escriben en la misma transacción que el cambio.
 
-Repetir un PRESENT ya persistido devuelve 200 con el mismo Attendance y no crea otro evento. El cierre repetido no duplica ABSENT ni auditoría. ClassSession, Student y Subscription se bloquean para serializar PRESENT, reconciliación y el último allowance; UNIQUE(studentId, classSessionId) resuelve la carrera final.
+Repetir un PRESENT ya persistido con challenge vigente y condiciones de acceso válidas devuelve 200 con el mismo Attendance y no crea otro evento. Un challenge vencido/revocado/de otra clase responde 409 incluso en reintentos; falta de challenge o formato inválido responde 400. El cierre repetido no duplica ABSENT ni auditoría. ClassSession, Student y Subscription se bloquean para serializar PRESENT, reconciliación y el último allowance; UNIQUE(studentId, classSessionId) resuelve la carrera final.
 
 ## Fechas, dinero y futuras listas
 
@@ -127,3 +128,11 @@ Dinero persistido como Decimal(10,2), nunca Float, y serializado como string con
 El listado Students usa página/offset con `page` default 1 y máximo 100000, `limit` default 20 y máximo 100. Devuelve `{ items, meta: { page, limit, total, totalPages } }` y ordena por nombre e ID. El filtro `status` acepta `active`, `inactive` y `all`; `search` realiza coincidencia parcial sin distinguir mayúsculas. Ver [Students](students.md).
 
 Plans, Subscriptions, Payments y scheduling reutilizan la misma forma paginada. Plans filtra `active|inactive|all`; Subscriptions `active|expired|cancelled|all`; Payments `confirmed|voided|all`; Schedules `active|inactive|all`; Enrollment `upcoming|active|expired|all`; ClassSession `scheduled|cancelled|completed|all`. Ver [scheduling](scheduling.md).
+
+## Emisión QR y límites autenticados
+
+POST /api/v1/admin/class-sessions/:id/qr-challenge recibe body vacío, requiere Admin y Origin permitido, y responde 201 con challenge, classSessionId y expiresAt. No admite TTL, estado ni autor externos. Sólo se emite para una clase SCHEDULED con ventana abierta. Cada llamada exitosa emite un secreto nuevo: no es idempotente y no recupera un secreto anterior. No hay cooldown de medio TTL. El anterior se tolera hasta su expiry original o hasta ser desplazado por dos emisiones posteriores.
+
+No hay endpoint de estado ni imagen QR. El secreto se devuelve una única vez y todas las respuestas llevan Cache-Control: no-store. El cliente debe mostrar la última respuesta recibida y evitar peticiones de rotación superpuestas; si pierde la respuesta puede solicitar otra, respetando rate limiting. El QR contiene sólo el token; la ClassSession se obtiene del contexto de las clases propias, no de una URL que transporte el secreto.
+
+RATE_ATTENDANCE_LIMIT/WINDOW_MS aplica por Student autenticada (20/min), no por IP. RATE_QR_CHALLENGE_LIMIT/WINDOW_MS aplica por Admin y ClassSession (20/min). Ambos acumulan el límite general por IP. Un 429 incluye Retry-After. Reiniciar sesión no cambia la identidad del contador. Ver [attendance-qr.md](attendance-qr.md).

@@ -1,3 +1,4 @@
+import { AttendanceChallengeService } from '../src/attendance/attendance-challenge.service';
 import { randomUUID } from 'node:crypto';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import {
@@ -25,6 +26,7 @@ describe('Attendance persistence with PostgreSQL (integration)', () => {
   let classSessions: ClassSessionsService;
   let businessTime: BusinessTimeService;
   let actorId: string;
+  const challenges = new Map<string, string>();
 
   beforeAll(async () => {
     ({ app, prisma } = await createTestApp());
@@ -104,7 +106,7 @@ describe('Attendance persistence with PostgreSQL (integration)', () => {
       },
     });
     const status = options?.status ?? ClassSessionStatus.SCHEDULED;
-    return prisma.classSession.create({
+    const session = await prisma.classSession.create({
       data: {
         scheduleId: schedule.id,
         occurrenceDate: localDateToDatabaseDate(today),
@@ -121,14 +123,34 @@ describe('Attendance persistence with PostgreSQL (integration)', () => {
           : {}),
       },
     });
+    if (
+      status === ClassSessionStatus.SCHEDULED &&
+      startAt.getTime() - 3600000 <= now.getTime() &&
+      endAt.getTime() + 3600000 > now.getTime()
+    ) {
+      challenges.set(
+        session.id,
+        (await app.get(AttendanceChallengeService).issue(session.id, actorId))
+          .challenge,
+      );
+    }
+    return session;
   }
 
   it('records PRESENT idempotently under concurrent retries and audits once', async () => {
     const fixture = await contract();
     const session = await addSession(fixture);
     const [first, replay] = await Promise.all([
-      attendance.markPresent(session.id, fixture.student.id),
-      attendance.markPresent(session.id, fixture.student.id),
+      attendance.markPresent(
+        session.id,
+        fixture.student.id,
+        challenges.get(session.id) ?? 'sgq_' + 'A'.repeat(43),
+      ),
+      attendance.markPresent(
+        session.id,
+        fixture.student.id,
+        challenges.get(session.id) ?? 'sgq_' + 'A'.repeat(43),
+      ),
     ]);
 
     expect(first.attendance?.id).toBe(replay.attendance?.id);
@@ -205,7 +227,11 @@ describe('Attendance persistence with PostgreSQL (integration)', () => {
     const afterClose = new Date(session.endAt.getTime() + 60 * 60_000);
 
     await Promise.allSettled([
-      attendance.markPresent(session.id, fixture.student.id),
+      attendance.markPresent(
+        session.id,
+        fixture.student.id,
+        challenges.get(session.id) ?? 'sgq_' + 'A'.repeat(43),
+      ),
       attendance.reconcileDue(afterClose),
     ]);
 
@@ -231,8 +257,16 @@ describe('Attendance persistence with PostgreSQL (integration)', () => {
     const secondSession = await addSession(fixture);
 
     const results = await Promise.allSettled([
-      attendance.markPresent(firstSession.id, fixture.student.id),
-      attendance.markPresent(secondSession.id, fixture.student.id),
+      attendance.markPresent(
+        firstSession.id,
+        fixture.student.id,
+        challenges.get(firstSession.id) ?? 'sgq_' + 'A'.repeat(43),
+      ),
+      attendance.markPresent(
+        secondSession.id,
+        fixture.student.id,
+        challenges.get(secondSession.id) ?? 'sgq_' + 'A'.repeat(43),
+      ),
     ]);
     expect(
       results.filter((result) => result.status === 'fulfilled'),
@@ -255,7 +289,11 @@ describe('Attendance persistence with PostgreSQL (integration)', () => {
       endAt: new Date(now.getTime() + 3 * 60 * 60_000),
     });
     await expect(
-      attendance.markPresent(futureSession.id, future.student.id),
+      attendance.markPresent(
+        futureSession.id,
+        future.student.id,
+        challenges.get(futureSession.id) ?? 'sgq_' + 'A'.repeat(43),
+      ),
     ).rejects.toMatchObject({ status: 409 });
 
     const closed = await contract();
@@ -264,7 +302,11 @@ describe('Attendance persistence with PostgreSQL (integration)', () => {
       endAt: new Date(now.getTime() - 2 * 60 * 60_000),
     });
     await expect(
-      attendance.markPresent(closedSession.id, closed.student.id),
+      attendance.markPresent(
+        closedSession.id,
+        closed.student.id,
+        challenges.get(closedSession.id) ?? 'sgq_' + 'A'.repeat(43),
+      ),
     ).rejects.toMatchObject({ status: 409 });
 
     const cancelled = await contract();
@@ -272,7 +314,11 @@ describe('Attendance persistence with PostgreSQL (integration)', () => {
       status: ClassSessionStatus.CANCELLED,
     });
     await expect(
-      attendance.markPresent(cancelledSession.id, cancelled.student.id),
+      attendance.markPresent(
+        cancelledSession.id,
+        cancelled.student.id,
+        challenges.get(cancelledSession.id) ?? 'sgq_' + 'A'.repeat(43),
+      ),
     ).rejects.toMatchObject({ status: 409 });
     await attendance.reconcileDue(new Date(now.getTime() + 3 * 60 * 60_000));
     expect(

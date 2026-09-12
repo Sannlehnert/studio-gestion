@@ -30,6 +30,16 @@ describe('Attendance API with PostgreSQL (e2e)', () => {
   let students: StudentsService;
   let adminCookie: string;
   let adminId: string;
+  const challenges = new Map<string, string>();
+  async function issue(id: string) {
+    const response = await request(app.getHttpServer())
+      .post(`/api/v1/admin/class-sessions/${id}/qr-challenge`)
+      .set('Origin', FRONTEND_ORIGIN)
+      .set('Cookie', adminCookie)
+      .send({})
+      .expect(201);
+    challenges.set(id, response.body.challenge);
+  }
 
   beforeAll(async () => {
     ({ app, prisma } = await createTestApp());
@@ -102,6 +112,7 @@ describe('Attendance API with PostgreSQL (e2e)', () => {
         capacity: 10,
       },
     });
+    if (!options?.past) await issue(classSession.id);
     return { student, subscription, classSession };
   }
 
@@ -163,6 +174,7 @@ describe('Attendance API with PostgreSQL (e2e)', () => {
         endAt: new Date(now.getTime() + 10 * 60_000),
       },
     });
+    await issue(classSession.id);
     return {
       student: student.body as { id: string },
       subscription: subscription.body as { id: string },
@@ -193,7 +205,7 @@ describe('Attendance API with PostgreSQL (e2e)', () => {
         validUntil: localDateToDatabaseDate(addLocalDays(today, 2)),
       },
     });
-    return prisma.classSession.create({
+    const session = await prisma.classSession.create({
       data: {
         scheduleId: schedule.id,
         occurrenceDate: localDateToDatabaseDate(today),
@@ -202,6 +214,8 @@ describe('Attendance API with PostgreSQL (e2e)', () => {
         capacity: 10,
       },
     });
+    await issue(session.id);
+    return session;
   }
 
   async function studentCookie(studentId: string) {
@@ -279,7 +293,7 @@ describe('Attendance API with PostgreSQL (e2e)', () => {
       )
       .set('Origin', FRONTEND_ORIGIN)
       .set('Cookie', ownCookie)
-      .send({})
+      .send({ challenge: challenges.get(own.classSession.id) })
       .expect(200);
     expect(recorded.body.attendance).toMatchObject({
       studentId: own.student.id,
@@ -296,7 +310,7 @@ describe('Attendance API with PostgreSQL (e2e)', () => {
       )
       .set('Origin', FRONTEND_ORIGIN)
       .set('Cookie', ownCookie)
-      .send({})
+      .send({ challenge: challenges.get(own.classSession.id) })
       .expect(200);
     expect(replay.body.attendance.id).toBe(recorded.body.attendance.id);
 
@@ -417,7 +431,7 @@ describe('Attendance API with PostgreSQL (e2e)', () => {
         )
         .set('Origin', FRONTEND_ORIGIN)
         .set('Cookie', cookie)
-        .send({});
+        .send({ challenge: challenges.get(classSessionId) });
     const now = new Date();
 
     const before = await fixture();

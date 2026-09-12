@@ -21,7 +21,7 @@ Cada módulo de negocio contiene controllers administrativos delgados, DTOs y un
 - SchedulesModule: recurrencias semanales, capacidad habitual y estado.
 - EnrollmentsModule: pertenencias temporales con reglas contractuales y cupos.
 - ClassSessionsModule: materialización idempotente, snapshots, excepciones, cancelación y consulta de alumnas esperadas.
-- AttendanceModule: PRESENT de Student, consultas Student/Admin, consumo derivado y reconciliación de ABSENT al iniciar y periódicamente.
+- AttendanceModule: PRESENT de Student, challenge QR temporal, consultas Student/Admin, consumo derivado y reconciliación de ABSENT al iniciar y periódicamente. AttendanceChallengeService coordina emisión y persistencia; AttendanceRateGuard limita por identidad después del guard de autenticación.
 - HealthController: liveness con timestamp. El inicio de AppModule requiere conexión PostgreSQL, pero health no ejecuta una consulta nueva por request.
 
 La carpeta common contiene configuración HTTP compartida, DTO de error y filtro de excepciones. No es un contenedor de reglas de negocio.
@@ -30,7 +30,7 @@ La carpeta common contiene configuración HTTP compartida, DTO de error y filtro
 
 main.ts crea NestExpressApplication con bodyParser desactivado y llama a configureApp. Esa misma función inicializa las aplicaciones de prueba.
 
-Orden: trust proxy explícito, Helmet, no-store, rate limiting, CORS, validación CSRF, admisión de JSON, parser limitado, normalización de errores de parsing, cookie-parser, prefijo/DTOs/filtro y OpenAPI en desarrollo. Después de inicializar Nest se registra el fallback JSON de rutas fuera del prefijo, porque Nest 12 limita su 404 al prefijo.
+Orden: trust proxy explícito, Helmet, no-store, rate limiting general por IP, CORS, validación CSRF, admisión de JSON, parser limitado, normalización de errores de parsing, cookie-parser, prefijo/DTOs/filtro y OpenAPI en desarrollo. Después de inicializar Nest se registra el fallback JSON de rutas fuera del prefijo, porque Nest 12 limita su 404 al prefijo.
 
 ConfigModule expone AppSettings validados. Servicios y controllers no interpretan por separado variables de cookies, orígenes o TTL. En tests se ignora el .env de desarrollo.
 
@@ -67,3 +67,13 @@ El script de seed exige credenciales explícitas, no tiene contraseña por defec
 ## Límites operativos actuales
 
 Una instancia backend con rate limiting en memoria. Antes de múltiples instancias se necesita un store compartido y una topología de proxy definida. La configuración de DB de producción, TLS, backup/restore y observabilidad pertenecen al despliegue y no están provisionados aquí.
+
+## QR y frontera transaccional
+
+AttendanceChallengeService reutiliza TokenService y CLOCK. La emisión bloquea ClassSession, limpia secretos efímeros vencidos/revocados de esa clase, conserva al predecesor, revoca generaciones más antiguas y crea challenge más AuditLog atómicamente. No hay scheduler QR, caché de secretos ni endpoint para recuperar el plaintext.
+
+AttendanceService recibe challenge obligatorio, consulta su hash dentro de la transacción y valida vinculación, estado y tiempo. También valida reintentos antes de devolver una Attendance existente. Después de las consultas de consumo vuelve a leer CLOCK; para un alta nueva comprueba otra vez después de las escrituras y la construcción de respuesta. Un vencimiento observado antes de terminar la transacción revierte Attendance y AuditLog. La expiración no puede garantizar entrega de una respuesta antes de que venza: la red puede demorar, y el cliente debe volver a escanear.
+
+ClassSessionsService utiliza CLOCK para la cancelación y revoca challenges bajo el mismo bloqueo. No se alteraron las reglas de cancelación ni el motor ABSENT. El orden de bloqueo continúa siendo compatible: cancelación Schedule → ClassSession; PRESENT ClassSession → Student → Subscription; emisión sólo ClassSession. No existe un camino inverso desde QR hacia Schedule.
+
+Los límites autenticados reutilizan express-rate-limit/MemoryStore y se liberan al cerrar el módulo. Attendance usa Student.id; QR usa Admin.id + ClassSession. La IP queda protegida por el límite general previo. No se usan cookies, tokens, headers de identidad ni datos del body como clave.

@@ -1,3 +1,8 @@
+import { AttendanceChallengeService } from './attendance-challenge.service';
+import {
+  assertChallengeFormat,
+  assertChallengeValid,
+} from './attendance-challenge';
 import {
   ConflictException,
   Inject,
@@ -61,6 +66,7 @@ export class AttendanceService {
 
   constructor(
     private readonly prisma: PrismaService,
+    private readonly challenges: AttendanceChallengeService,
     private readonly classSessions: ClassSessionsService,
     config: ConfigService,
     @Inject(CLOCK) private readonly clock: Clock,
@@ -71,7 +77,12 @@ export class AttendanceService {
     this.closeAfterMinutes = settings.attendanceCloseAfterMinutes;
   }
 
-  async markPresent(classSessionId: string, studentId: string) {
+  async markPresent(
+    classSessionId: string,
+    studentId: string,
+    challenge: string,
+  ) {
+    assertChallengeFormat(challenge);
     return this.prisma.$transaction(async (tx) => {
       await this.lockClassSession(tx, classSessionId);
       const session = await this.findSession(tx, classSessionId);
@@ -81,10 +92,7 @@ export class AttendanceService {
         where: { studentId_classSessionId: { studentId, classSessionId } },
         select: attendanceProjection,
       });
-      if (existing?.status === AttendanceStatus.PRESENT) {
-        return this.studentResponse(tx, session, existing);
-      }
-      if (existing) {
+      if (existing?.status === AttendanceStatus.ABSENT) {
         throw new ConflictException(
           'La clase ya fue cerrada con ausencia para la alumna',
         );
@@ -104,6 +112,9 @@ export class AttendanceService {
             : 'La ventana de asistencia ya cerró',
         );
       }
+
+      const qr = await this.challenges.find(tx, challenge);
+      assertChallengeValid(qr, classSessionId, this.clock.now());
 
       await this.lockStudents(tx, [studentId]);
       const student = await tx.student.findUnique({
@@ -130,6 +141,11 @@ export class AttendanceService {
         );
       }
 
+      const summary = await this.classSummaryTx(
+        tx,
+        expected.subscriptionId,
+        studentId,
+      );
       const recordedAt = this.clock.now();
       const finalWindow = this.window(session, recordedAt);
       if (finalWindow.status !== AttendanceWindowStatus.OPEN) {
@@ -140,11 +156,20 @@ export class AttendanceService {
         );
       }
 
-      const summary = await this.classSummaryTx(
-        tx,
-        expected.subscriptionId,
-        studentId,
-      );
+      assertChallengeValid(qr, classSessionId, recordedAt);
+      if (existing?.status === AttendanceStatus.PRESENT) {
+        return {
+          classSession: {
+            id: session.id,
+            occurrenceDate: databaseDateToLocalDate(session.occurrenceDate),
+            startAt: session.startAt,
+            endAt: session.endAt,
+          },
+          window: finalWindow,
+          attendance: existing,
+          classSummary: summary,
+        };
+      }
       if (summary.remainingClasses === 0) {
         throw new ConflictException('La suscripción agotó sus clases');
       }
@@ -171,7 +196,15 @@ export class AttendanceService {
           },
         },
       });
-      return this.studentResponse(tx, session, attendance);
+      const response = await this.studentResponse(tx, session, attendance);
+      const finishedAt = this.clock.now();
+      assertChallengeValid(qr, classSessionId, finishedAt);
+      if (
+        this.window(session, finishedAt).status !== AttendanceWindowStatus.OPEN
+      ) {
+        throw new ConflictException('La ventana de asistencia ya cerró');
+      }
+      return response;
     });
   }
 

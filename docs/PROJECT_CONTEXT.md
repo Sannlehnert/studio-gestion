@@ -4,8 +4,8 @@ Studio Gestión es un sistema real para una profesora que alquila una sala y adm
 
 ## Alcance y estado
 
-- IMPLEMENTED: foundation, Auth, Students, Plans, Subscriptions, Payments, Schedules, Enrollments, ClassSessions, Attendance e historial temporal de actividad. La evidencia está en las validaciones de [Fase 0](phase-0-validation.md), [Etapa 1](stage-1-validation.md), [Etapa 2](stage-2-validation.md), [Etapa 3](stage-3-validation.md), [Etapa 4](stage-4-validation.md) y [Etapa 4.1](stage-4.1-validation.md).
-- PLANNED: QR dinámico y recuperaciones.
+- IMPLEMENTED: foundation, Auth, Students, Plans, Subscriptions, Payments, Schedules, Enrollments, ClassSessions, Attendance, historial temporal de actividad y challenge QR. La evidencia está en las validaciones de [Fase 0](phase-0-validation.md), [Etapa 1](stage-1-validation.md), [Etapa 2](stage-2-validation.md), [Etapa 3](stage-3-validation.md), [Etapa 4](stage-4-validation.md), [Etapa 4.1](stage-4.1-validation.md) y [Etapa 5](stage-5-validation.md).
+- PLANNED: recuperaciones.
 - NOT STARTED: frontend. StudentModule singular aporta la ruta de permisos de alumna; StudentsModule contiene su gestión administrativa.
 - Fuera del MVP: múltiples profesores/salas/sedes, reservas, WhatsApp, pagos online, notificaciones y SaaS.
 
@@ -13,7 +13,7 @@ Studio Gestión es un sistema real para una profesora que alquila una sala y adm
 
 Admin se autentica con email y contraseña. Administrará alumnas y operaciones de negocio cuando existan esos módulos. Student no requiere email, usuario ni contraseña: recibe un enlace temporal, lo intercambia una sola vez por una cookie de sesión y opera con su identidad persistida. Una alumna no podrá modificar asistencias, pagos, planes ni períodos.
 
-Actualmente Admin tiene login, gestión de alumnas y accesos, catálogo, contratos, pagos, horarios, inscripciones, clases y lectura de asistencia. Student tiene activación, identidad, logout, consulta de sus propias clases y registro de PRESENT dentro de la ventana autorizada.
+Actualmente Admin tiene login, gestión de alumnas y accesos, catálogo, contratos, pagos, horarios, inscripciones, clases y lectura de asistencia. Student tiene activación, identidad, logout, consulta de sus propias clases y registro de PRESENT con challenge QR vigente dentro de la ventana autorizada.
 
 ## Reglas del producto que deben conservarse
 
@@ -25,9 +25,9 @@ Actualmente Admin tiene login, gestión de alumnas y accesos, catálogo, contrat
 6. El backend autoriza la asistencia entre inicio menos una hora y fin más una hora. Si no se registra en la ventana corresponde ABSENT y consume clase. La combinación alumna/clase debe ser única también en PostgreSQL.
 7. Recovery vincula una ausencia concreta, una alumna y otra ClassSession real dentro de la misma Subscription. La ausencia original permanece.
 8. La capacidad no puede superarse con operaciones concurrentes.
-9. El futuro QR será dinámico, temporal y asociado a ClassSession. Además del challenge se validarán sesión, suscripción, inscripción, clase, ventana y ausencia de asistencia previa. Sin GPS en el MVP.
+9. El QR es dinámico, temporal y asociado a ClassSession. Además del challenge se validan sesión, actividad actual e histórica, suscripción, inscripción, clase, ventana e idempotencia. No demuestra presencia física ni impide compartirlo en tiempo real. Sin GPS en el MVP.
 
-Las reglas 1–6 están implementadas. Recovery y el challenge QR de las reglas 7 y 9 siguen planificados. Los constraints se describen en [modelo de dominio](domain-model.md).
+Las reglas 1–6 y 9 están implementadas. Recovery de la regla 7 sigue planificado. Los constraints se describen en [modelo de dominio](domain-model.md).
 
 ## Stack y decisiones
 
@@ -43,6 +43,7 @@ No introducir microservicios, CQRS, event sourcing ni repositorios ceremoniales.
 - Etapa 3: Schedules, Enrollments y ClassSessions — IMPLEMENTED.
 - Etapa 4: Attendance Engine y Absences — IMPLEMENTED, con consumo derivado y reconciliación recuperable.
 - Etapa 4.1: Historical Student Eligibility — IMPLEMENTED, con ciclos temporales y reconciliación histórica.
-- Próxima etapa evaluada: Dynamic QR Attendance Challenge. Todavía no iniciada.
+- Etapa 5: Dynamic QR Attendance Challenge — IMPLEMENTED, con hash, TTL, rotación acotada y límites por identidad.
+- Próxima etapa evaluada: Recoveries. Todavía no iniciada.
 
 No avanzar de etapa automáticamente. Cualquier etapa necesita lint, typecheck, tests pertinentes y build en verde. No borrar tests fallidos ni modificar producción solo para satisfacer mocks.

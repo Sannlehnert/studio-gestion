@@ -1,3 +1,4 @@
+import { AttendanceChallengeService } from '../src/attendance/attendance-challenge.service';
 import { randomUUID } from 'node:crypto';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { AttendanceStatus, ClassSessionStatus, Prisma } from '@prisma/client';
@@ -7,7 +8,7 @@ import { PrismaService } from '../src/prisma.service';
 import { StudentStatusHistoryService } from '../src/students/student-status-history.service';
 import { StudentsService } from '../src/students/students.service';
 import { Clock } from '../src/time/clock';
-import { createTestApp } from './helpers';
+import { createAdmin, createTestApp } from './helpers';
 
 class MutableClock implements Clock {
   constructor(private current: Date) {}
@@ -26,7 +27,7 @@ describe('Historical student eligibility with PostgreSQL (integration)', () => {
   const classStart = new Date('2035-01-10T13:00:00.000Z');
   const classEnd = new Date('2035-01-10T14:00:00.000Z');
   const afterWindow = new Date('2035-01-10T15:01:00.000Z');
-  const actorId = 'historical-eligibility-test';
+  let actorId: string;
   const clock = new MutableClock(t0);
   let app: NestExpressApplication;
   let prisma: PrismaService;
@@ -37,6 +38,7 @@ describe('Historical student eligibility with PostgreSQL (integration)', () => {
 
   beforeAll(async () => {
     ({ app, prisma } = await createTestApp({ clock }));
+    actorId = (await createAdmin(app, prisma)).admin.id;
     students = app.get(StudentsService);
     history = app.get(StudentStatusHistoryService);
     classSessions = app.get(ClassSessionsService);
@@ -204,7 +206,8 @@ describe('Historical student eligibility with PostgreSQL (integration)', () => {
       },
     });
     const sessionStarts = [2, 4, 6, 8, 10].map(
-      (day) => new Date(`2035-01-${String(day).padStart(2, '0')}T13:00:00.000Z`),
+      (day) =>
+        new Date(`2035-01-${String(day).padStart(2, '0')}T13:00:00.000Z`),
     );
     const sessions = await Promise.all(
       sessionStarts.map((startAt) =>
@@ -301,7 +304,15 @@ describe('Historical student eligibility with PostgreSQL (integration)', () => {
   it('preserves PRESENT and expected history after deactivation (cases D and E)', async () => {
     const fixture = await contractWithClass();
     clock.set(new Date('2035-01-10T13:30:00.000Z'));
-    await attendance.markPresent(fixture.session.id, fixture.student.id);
+    await attendance.markPresent(
+      fixture.session.id,
+      fixture.student.id,
+      (
+        await app
+          .get(AttendanceChallengeService)
+          .issue(fixture.session.id, actorId)
+      ).challenge,
+    );
     clock.set(afterWindow);
     await students.deactivate(fixture.student.id, actorId);
     await attendance.reconcileDue();
@@ -330,10 +341,7 @@ describe('Historical student eligibility with PostgreSQL (integration)', () => {
       }),
     ).resolves.toMatchObject({ status: AttendanceStatus.PRESENT });
     await expect(
-      attendance.getClassSummary(
-        fixture.subscription.id,
-        fixture.student.id,
-      ),
+      attendance.getClassSummary(fixture.subscription.id, fixture.student.id),
     ).resolves.toMatchObject({
       usedClasses: 1,
       remainingClasses: 7,

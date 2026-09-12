@@ -127,7 +127,6 @@ export function rateLimiters(settings: AppSettings): RequestHandler[] {
   const login = limiter(policies.login, 'login');
   const activation = limiter(policies.activation, 'activation');
   const access = limiter(policies.access, 'access');
-  const attendance = limiter(policies.attendance, 'attendance');
   const sensitive: RequestHandler = (request, response, next) => {
     if (request.method !== 'POST') return next();
     const path = request.path.toLowerCase().replace(/\/$/, '');
@@ -137,8 +136,6 @@ export function rateLimiters(settings: AppSettings): RequestHandler[] {
       return activation(request, response, next);
     if (/^\/api\/v1\/admin\/students\/[^/]+\/access$/.test(path))
       return access(request, response, next);
-    if (/^\/api\/v1\/student\/class-sessions\/[^/]+\/attendance$/.test(path))
-      return attendance(request, response, next);
     return next();
   };
   return [limiter(policies.api, 'api'), sensitive];

@@ -1,3 +1,5 @@
+import { AttendanceChallengeService } from './attendance-challenge.service';
+import { AttendanceRateGuard } from './attendance-rate.guard';
 import { Module } from '@nestjs/common';
 import { AuthModule } from '../auth/auth.module';
 import { ClassSessionsModule } from '../class-sessions/class-sessions.module';
@@ -16,7 +18,12 @@ import { StudentAttendanceController } from './student-attendance.controller';
     StudentsModule,
   ],
   controllers: [AdminAttendanceController, StudentAttendanceController],
-  providers: [AttendanceService, AttendanceReconciliationScheduler],
+  providers: [
+    AttendanceChallengeService,
+    AttendanceRateGuard,
+    AttendanceService,
+    AttendanceReconciliationScheduler,
+  ],
   exports: [AttendanceService],
 })
 export class AttendanceModule {}

@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
+  Inject,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -16,6 +17,7 @@ import {
   parseLocalDate,
 } from '../time/business-time';
 import { BusinessTimeService } from '../time/business-time.service';
+import { CLOCK, Clock } from '../time/clock';
 import {
   CancelClassSessionDto,
   ClassSessionStatusFilter,
@@ -59,6 +61,7 @@ export class ClassSessionsService {
     private readonly prisma: PrismaService,
     private readonly businessTime: BusinessTimeService,
     private readonly studentStatusHistory: StudentStatusHistoryService,
+    @Inject(CLOCK) private readonly clock: Clock,
   ) {}
 
   async generate(dto: GenerateClassSessionsDto, actorId: string) {
@@ -282,11 +285,15 @@ export class ClassSessionsService {
         where: { id },
         data: {
           status: ClassSessionStatus.CANCELLED,
-          cancelledAt: new Date(),
+          cancelledAt: this.clock.now(),
           cancelledByAdminId: actorId,
           cancellationReason: dto.reason,
         },
         select: classSessionProjection,
+      });
+      await tx.attendanceChallenge.updateMany({
+        where: { classSessionId: id, revokedAt: null },
+        data: { revokedAt: updated.cancelledAt! },
       });
       await tx.auditLog.create({
         data: {

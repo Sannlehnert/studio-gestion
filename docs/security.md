@@ -14,17 +14,17 @@ Esta baseline describe el código existente. COMPLETE para Auth/Foundation no si
 | CSRF                  | IMPLEMENTED                  | Validación estricta de Origin/Referer en métodos mutables, incluidos login y activación.                                             |
 | CORS                  | IMPLEMENTED                  | Allowlist exacta configurable, credentials; sin wildcard.                                                                            |
 | Helmet                | IMPLEMENTED                  | CSP, nosniff, anti-framing, no-referrer y demás headers; HSTS solo en producción.                                                    |
-| Rate limiting         | IMPLEMENTED                  | Categorías por IP, límites configurables, Retry-After, almacén en memoria.                                                           |
+| Rate limiting         | IMPLEMENTED                  | IP general y categorías Auth; Student para PRESENT y Admin+ClassSession para QR, configurables, Retry-After, memoria.                                                           |
 | Payload               | IMPLEMENTED                  | JSON 16 KiB por defecto, sin compresión ni URL encoded.                                                                              |
 | IDOR/BOLA             | IMPLEMENTED                  | Identidad por sesión; Students, núcleo comercial y scheduling sólo Admin, UUIDs validados y relaciones cruzadas comprobadas.          |
-| Attendance            | IMPLEMENTED                  | Student actúa para sí, body vacío, reloj del backend, ownership contractual, locks y UNIQUE; Admin sólo consulta en esta etapa.       |
+| Attendance            | IMPLEMENTED                  | Student actúa para sí con challenge obligatorio, reloj del backend, ownership, locks y UNIQUE; Admin emite QR y consulta.       |
 | SQL injection         | IMPLEMENTED en Auth          | Prisma parametrizado. El único identificador SQL dinámico del runner de tests se genera internamente y se acota a un schema aislado. |
 | Mass assignment       | IMPLEMENTED                  | DTOs estrictos y persistencia explícita.                                                                                             |
 | Errores/logs          | IMPLEMENTED / PARTIAL        | Sin stacks, tokens ni bodies en respuestas o logs de error; falta telemetría operativa de seguridad.                                 |
 | URL de activación     | PARTIAL de extremo a extremo | Fragmento implementado; limpieza inmediata por frontend PLANNED.                                                                     |
 | Privilegios DB        | PARTIAL                      | Tests aislados; separación de roles de aplicación/migración de producción no provisionada.                                           |
 | TLS, backups, alertas | PLANNED de despliegue        | La configuración exige HTTPS en producción; no se desplegó infraestructura.                                                          |
-| QR                    | PLANNED                      | Challenge temporal y validaciones de dominio, sin GPS.                                                                               |
+| QR                    | IMPLEMENTED                  | Challenge temporal hasheado, rotación acotada y validaciones de dominio; sin prueba de proximidad.                                                                               |
 
 ## Decisión CSRF
 
@@ -50,13 +50,14 @@ CSP de API restringida; únicamente el Swagger de desarrollo permite estilos inl
 
 ## Límites HTTP
 
-| Categoría          | Default por IP    | Motivo                                                                            |
+| Categoría          | Default y dimensión | Motivo                                                                            |
 | ------------------ | ----------------- | --------------------------------------------------------------------------------- |
 | General            | 300 por minuto    | Espacio para consultas de un grupo bajo la misma conexión, con límite de ráfagas. |
 | Admin login        | 10 por 15 minutos | Pocos accesos legítimos de la profesora y costo de Argon2.                        |
 | Activación Student | 60 por 15 minutos | Permitir activación de un grupo desde una misma red; tokens de alta entropía.     |
 | Emisión de accesos | 30 por 15 minutos | Cubre la emisión de un grupo habitual, restringiendo abuso.                       |
-| Marcar Attendance  | 20 por minuto     | Tolera double taps y reduce ráfagas; integridad depende de transacción y DB.       |
+| Marcar Attendance | 20/min por Student | Tolera reintentos sin bloquear alumnas bajo la misma IP. |
+| Emitir QR | 20/min por Admin + ClassSession | Permite recargas y rotaciones; limita abuso. |
 
 Las variables RATE_* permiten ajustar con evidencia de uso. El límite general y el sensible se acumulan. Contadores en memoria por proceso; reiniciar los reinicia. Una instancia es el supuesto actual. Antes de escalar horizontalmente usar un store compartido y protección en el proxy.
 
@@ -80,8 +81,18 @@ Subscription concurrentes se serializan por Student y terminan protegidas por `S
 
 Scheduling no acepta IDs internos, estado, capacidad ni timestamps fuera del DTO específico de cada caso de uso. La FK compuesta impide asignar a una Student una Subscription ajena incluso fuera del servicio. Los cupos se serializan por Schedule; PostgreSQL rechaza Enrollment solapados y clases duplicadas. La generación sólo usa Schedules activos y la cancelación exige Admin, motivo y auditoría. Las horas recurrentes nunca dependen del reloj o timezone del navegador.
 
-Attendance no acepta `studentId`, `subscriptionId`, estado, origen, timestamp ni contadores. StudentGuard fija la identidad y vuelve a comprobar `Student.isActive`; la elegibilidad contractual se deriva con StudentActivePeriod en `ClassSession.startAt`. Una consulta Student exige una Attendance propia o pertenencia temporal. El servicio parametriza también su consulta SQL de próximas clases. CSRF cubre el POST y un límite configurable de 20 por minuto reduce abuso sin sustituir UNIQUE, FKs, CHECKs ni locks.
+Attendance no acepta `studentId`, `subscriptionId`, estado, origen, timestamp ni contadores. StudentGuard fija la identidad y vuelve a comprobar `Student.isActive`; la elegibilidad contractual se deriva con StudentActivePeriod en `ClassSession.startAt`. Una consulta Student exige una Attendance propia o pertenencia temporal. El servicio parametriza también su consulta SQL de próximas clases. CSRF cubre el POST y un límite configurable de 20 por minuto por Student reduce abuso sin sustituir UNIQUE, FKs, CHECKs ni locks.
 
 Las relaciones históricas de Attendance y las relaciones Student/Subscription de Recovery usan `ON DELETE RESTRICT`. El AuditLog de PRESENT identifica a la Student; el cierre automático usa actor nulo y metadata agregada, sin inventar un Admin ni guardar cookies o tokens.
 
 Auth, Students, operaciones comerciales, scheduling y Attendance escriben auditoría en la misma transacción sin secretos. La retención y purga de sesiones, metadatos de red y AuditLog requiere una política explícita y aún no está implementada.
+
+## QR: secretos efímeros y límites reales
+
+Token opaco CSPRNG de 256 bits, hash SHA-256, TTL default 60s (30–120), asociación exacta a ClassSession y ventana actual. Valida también replays. No se usa como autenticación ni prueba física. Capturas o envío por WhatsApp en tiempo real siguen siendo útiles durante la vigencia si quien recibe tiene sesión Student y elegibilidad. Una sesión robada más un QR vigente tampoco se neutraliza con este mecanismo. Ver el [threat model completo](attendance-qr.md).
+
+El secreto se transporta sólo en body JSON y en la respuesta de emisión, nunca en URL, AuditLog, logs o ejemplos Swagger. El filtro ya evita reflejar cuerpos y errores Prisma; no hay body/access logging ni tracing de payloads configurado. El despliegue debe excluir estos cuerpos también en proxies, APM y cachés: el código de la API no controla infraestructura externa. HTTPS y no-store siguen siendo necesarios.
+
+El límite general de 300/min por IP es secundario y configurable: un grupo grande con múltiples peticiones puede agotarlo; hay que dimensionarlo con tráfico real. El límite específico de PRESENT ya no agrupa a todas las alumnas de la sala. Antes de varias instancias, ambos contadores autenticados necesitan un store compartido; la integridad ya depende de transacciones PostgreSQL, no de esos contadores.
+
+Durante la validación online de Etapa 5 npm audit detectó cuatro avisos de Multer 2.2.0 propagados como cinco dependencias vulnerables. Se agregó un override acotado a @nestjs/platform-express → multer 2.3.0, dentro del mismo major. La [versión oficial](https://github.com/expressjs/multer/releases/tag/v2.3.0) corrige GHSA-wc9g-mqfw-jrwm, GHSA-qfvm-cv95-jqjf, GHSA-qvfw-j98x-7q72 y GHSA-535w-7cp7-47q4. No se usan interceptores de archivos y JSON-only mantiene uploads rechazados. Sólo ese paquete cambió en el lockfile; suite completa, build y audit online posteriores pasaron. Retirar el override cuando Nest declare la dependencia corregida.

@@ -1,4 +1,6 @@
 import {
+  Body,
+  Post,
   Controller,
   Get,
   Param,
@@ -13,6 +15,12 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { AdminGuard } from '../auth/guards/admin.guard';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { AuthenticatedUser } from '../auth/types/auth.types';
+import { EmptyBodyDto } from '../auth/dto/auth-responses.dto';
+import { AttendanceChallengeService } from './attendance-challenge.service';
+import { AttendanceRateGuard } from './attendance-rate.guard';
+import { AttendanceChallengeResponseDto } from './dto/attendance-challenge.dto';
 import { AttendanceService } from './attendance.service';
 import {
   AdminClassAttendanceResponseDto,
@@ -24,7 +32,25 @@ import {
 @UseGuards(AdminGuard)
 @Controller('admin')
 export class AdminAttendanceController {
-  constructor(private readonly attendance: AttendanceService) {}
+  constructor(
+    private readonly attendance: AttendanceService,
+    private readonly challenges: AttendanceChallengeService,
+  ) {}
+
+  @Post('class-sessions/:classSessionId/qr-challenge')
+  @UseGuards(AttendanceRateGuard)
+  @ApiOperation({
+    summary: 'Emitir un challenge QR temporal para una clase abierta',
+  })
+  @ApiParam({ name: 'classSessionId', format: 'uuid' })
+  @ApiResponse({ status: 201, type: AttendanceChallengeResponseDto })
+  issueChallenge(
+    @Param('classSessionId', ParseUUIDPipe) classSessionId: string,
+    @CurrentUser() admin: AuthenticatedUser,
+    @Body() _body: EmptyBodyDto,
+  ) {
+    return this.challenges.issue(classSessionId, admin.id);
+  }
 
   @Get('class-sessions/:classSessionId/attendance')
   @ApiOperation({

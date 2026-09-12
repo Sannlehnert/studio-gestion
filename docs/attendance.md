@@ -9,7 +9,7 @@
 
 Ambos consumen una clase. No existe `usedClasses++` ni `remainingClasses--`: `usedClasses` es el conteo de Attendance de la Subscription y `remainingClasses = max(0, classAllowance - usedClasses)`. Si datos externos producen más registros que allowance, la respuesta expone `integrityStatus=OVERCONSUMED` y `overconsumedClasses`; no oculta la anomalía con un saldo negativo.
 
-Una ClassSession CANCELLED no admite Attendance, no genera ausencia y no consume. El servicio tampoco permite cancelar una clase que ya tiene Attendance. Recovery y correcciones administrativas no forman parte de esta etapa.
+El POST PRESENT exige challenge QR vigente para la ClassSession, además de todas las reglas de dominio. Una ClassSession CANCELLED no admite Attendance, no genera ausencia y no consume. El servicio tampoco permite cancelar una clase que ya tiene Attendance. Recovery y correcciones administrativas no forman parte de esta etapa.
 
 ## Ventana y elegibilidad
 
@@ -17,7 +17,7 @@ La configuración central usa `ATTENDANCE_OPEN_BEFORE_MINUTES` y `ATTENDANCE_CLO
 
 `[startAt - openBefore, endAt + closeAfter)`
 
-La apertura es inclusiva y el cierre exclusivo. `CLOCK` aporta el instante del backend; el cliente no envía timestamp ni timezone. El servicio comprueba la ventana al empezar y nuevamente, después de adquirir los locks necesarios, justo antes de persistir.
+La apertura es inclusiva y el cierre exclusivo. `CLOCK` aporta el instante del backend; el cliente no envía timestamp ni timezone. El servicio comprueba la ventana al empezar y nuevamente, después de adquirir los locks necesarios, después de consultar consumo y antes de persistir. También revalida challenge y ventana al finalizar las consultas/escrituras; si vencen durante una espera, la transacción revierte.
 
 La elegibilidad contractual de una clase se decide en `ClassSession.startAt`: la Student debe tener un `StudentActivePeriod` que contenga ese instante, un Enrollment válido en `occurrenceDate` y una Subscription propia y operativa en `startAt`.
 
@@ -25,7 +25,7 @@ Para crear PRESENT también se exige que la Student esté activa ahora, además 
 
 ## Idempotencia y concurrencia
 
-`UNIQUE(studentId, classSessionId)` impide dos resultados para una alumna y clase. Un replay de un PRESENT devuelve el mismo registro con 200 y no duplica consumo ni AuditLog. Si ya existe ABSENT, responde conflicto.
+`UNIQUE(studentId, classSessionId)` impide dos resultados para una alumna y clase. Un replay de un PRESENT con challenge vigente, ventana abierta y acceso/elegibilidad válidos devuelve el mismo registro con 200 y no duplica consumo ni AuditLog. Un token inválido, vencido, revocado o de otra clase se rechaza también en replays. El replay no exige allowance adicional. Si ya existe ABSENT, responde conflicto.
 
 Las mutaciones bloquean la ClassSession. Después bloquean Students y Subscriptions en orden estable, vuelven a leer elegibilidad y cuentan consumo dentro de la transacción. Esto serializa:
 
@@ -57,7 +57,7 @@ Una desactivación posterior a la clase no evita su ABSENT; una desactivación a
 | GET | `/api/v1/admin/class-sessions/:classSessionId/attendance` | ADMIN | Ver expected histórico, present, absent y pendientes |
 | GET | `/api/v1/admin/subscriptions/:subscriptionId/class-summary` | ADMIN | Ver consumo derivado del contrato |
 
-Admin sólo dispone de lectura en esta etapa. El POST Student requiere body vacío, Origin/Referer permitido y tiene un rate limit específico configurable. OpenAPI describe ventanas, estados, fuentes, resúmenes y errores.
+Admin también emite challenges con POST /api/v1/admin/class-sessions/:classSessionId/qr-challenge. El POST Student requiere `{ challenge }`, Origin/Referer permitido y tiene un rate limit específico por Student configurable. OpenAPI describe ventanas, estados, fuentes, resúmenes y errores.
 
 ## Auditoría
 
@@ -66,3 +66,11 @@ PRESENT crea `ATTENDANCE_PRESENT_RECORDED` con actor Student y referencias de Cl
 ## Migración
 
 `20260904220000_attendance_engine` elimina `EXCUSED`, agrega source, Subscription, `recordedAt` y `attendanceClosedAt`, refuerza CHECKs, índices y FKs RESTRICT. Attendance provisional no permite deducir qué Subscription consumió ni su origen; Recovery depende de ese significado. Por eso el upgrade aborta antes de modificar el schema si encuentra Attendance, Recovery o ClassSession ya COMPLETED y exige un mapeo manual trazable.
+
+## Integración del challenge (Etapa 5)
+
+La lógica normal de PRESENT sigue en AttendanceService; no existe otro endpoint que permita saltarse el QR. El secreto no identifica a la Student ni elige Subscription: sólo se compara mediante hash contra un challenge de la clase de la ruta. La emisión y rotación comparten el bloqueo de ClassSession con PRESENT, reconciliación y cancelación.
+
+AttendanceChallengeService mantiene como máximo el actual y el predecesor no revocados, TTL original y expiración no posterior al cierre calculado al emitir. Si cambia la hora de ClassSession, PRESENT utiliza siempre la ventana actual. El motor ABSENT y el consumo derivado no necesitan challenges y conservan su comportamiento.
+
+Ver [attendance-qr.md](attendance-qr.md) para lifecycle, amenazas, limpieza, rate limiting e idempotencia, y [stage-5-validation.md](stage-5-validation.md) para resultados reales.

@@ -57,11 +57,12 @@ enum PaymentMethod {
 // --------- Models ---------
 
 model Admin {
-  id           String   @id @default(uuid())
-  email        String   @unique
-  passwordHash String
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  attendanceChallenges AttendanceChallenge[]
+  id                   String                @id @default(uuid())
+  email                String                @unique
+  passwordHash         String
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
 
   paymentsCreated   Payment[]      @relation("PaymentCreatedBy")
   paymentsVoided    Payment[]      @relation("PaymentVoidedBy")
@@ -192,19 +193,20 @@ model Schedule {
 }
 
 model ClassSession {
-  id                 String             @id @default(uuid())
-  scheduleId         String
-  occurrenceDate     DateTime           @db.Date
-  startAt            DateTime
-  endAt              DateTime
-  capacity           Int
-  status             ClassSessionStatus @default(SCHEDULED)
-  cancelledAt        DateTime?
-  cancelledByAdminId String?
-  cancellationReason String?            @db.VarChar(500)
-  attendanceClosedAt DateTime?
-  createdAt          DateTime           @default(now())
-  updatedAt          DateTime           @updatedAt
+  attendanceChallenges AttendanceChallenge[]
+  id                   String                @id @default(uuid())
+  scheduleId           String
+  occurrenceDate       DateTime              @db.Date
+  startAt              DateTime
+  endAt                DateTime
+  capacity             Int
+  status               ClassSessionStatus    @default(SCHEDULED)
+  cancelledAt          DateTime?
+  cancelledByAdminId   String?
+  cancellationReason   String?               @db.VarChar(500)
+  attendanceClosedAt   DateTime?
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
 
   schedule    Schedule     @relation(fields: [scheduleId], references: [id], onDelete: Restrict)
   cancelledBy Admin?       @relation("ClassSessionCancelledBy", fields: [cancelledByAdminId], references: [id], onDelete: Restrict)
@@ -312,4 +314,19 @@ model Session {
 
   @@index([userId, role])
   @@index([expiresAt])
+}
+
+model AttendanceChallenge {
+  id               String       @id @default(uuid())
+  generation       BigInt       @default(autoincrement())
+  classSessionId   String
+  tokenHash        String       @unique @db.VarChar(64)
+  createdAt        DateTime     @default(now())
+  expiresAt        DateTime
+  revokedAt        DateTime?
+  createdByAdminId String
+  classSession     ClassSession @relation(fields: [classSessionId], references: [id], onDelete: Restrict)
+  createdBy        Admin        @relation(fields: [createdByAdminId], references: [id], onDelete: Restrict)
+
+  @@index([classSessionId, generation(sort: Desc)])
 }

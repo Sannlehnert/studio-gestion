@@ -24,11 +24,12 @@ export interface AppSettings {
   attendanceOpenBeforeMinutes: number;
   attendanceCloseAfterMinutes: number;
   attendanceReconcileIntervalMinutes: number;
+  qrChallengeTtlSeconds: number;
   swaggerEnabled: boolean;
   bodyLimitBytes: number;
   trustProxy: false | string[];
   rateLimits: Record<
-    'api' | 'login' | 'activation' | 'access' | 'attendance',
+    'api' | 'login' | 'activation' | 'access' | 'attendance' | 'qrChallenge',
     RatePolicy
   >;
 }
@@ -214,6 +215,7 @@ export function validate(input: Record<string, unknown>) {
       1,
       1440,
     ),
+    qrChallengeTtlSeconds: integer('QR_CHALLENGE_TTL_SECONDS', 60, 30, 120),
     bodyLimitBytes: integer('BODY_LIMIT_BYTES', 16_384, 1_024, 1_048_576),
     rateLimits: {
       api: rate('API', 300, 60_000),
@@ -221,6 +223,7 @@ export function validate(input: Record<string, unknown>) {
       activation: rate('ACTIVATION', 60, 900_000),
       access: rate('ACCESS', 30, 900_000),
       attendance: rate('ATTENDANCE', 20, 60_000),
+      qrChallenge: rate('QR_CHALLENGE', 20, 60_000),
     },
   };
   return { ...input, DATABASE_URL: databaseUrl, app };
