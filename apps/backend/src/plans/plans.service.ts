@@ -46,6 +46,7 @@ export class PlansService {
       });
       await tx.auditLog.create({
         data: {
+          actorType: 'ADMIN',
           actorId,
           action: 'PLAN_CREATED',
           entity: 'Plan',
@@ -146,6 +147,7 @@ export class PlansService {
       });
       await tx.auditLog.create({
         data: {
+          actorType: 'ADMIN',
           actorId,
           action: 'PLAN_UPDATED',
           entity: 'Plan',
@@ -185,6 +187,7 @@ export class PlansService {
       });
       await tx.auditLog.create({
         data: {
+          actorType: 'ADMIN',
           actorId,
           action: isActive ? 'PLAN_ACTIVATED' : 'PLAN_DEACTIVATED',
           entity: 'Plan',

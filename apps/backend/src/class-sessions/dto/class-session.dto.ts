@@ -1,3 +1,4 @@
+import { ParticipationOrigin } from '../class-participation.service';
 import { Transform, Type } from 'class-transformer';
 import {
   IsEnum,
@@ -185,12 +186,15 @@ export class ClassSessionGenerationResponseDto {
 }
 
 class ExpectedStudentDto {
+  @ApiProperty({ enum: ParticipationOrigin }) origin!: ParticipationOrigin;
+  @ApiProperty({ type: String, format: 'uuid', nullable: true }) recoveryId!:
+    string | null;
   @ApiProperty({ format: 'uuid' })
   studentId!: string;
   @ApiProperty()
   fullName!: string;
-  @ApiProperty({ format: 'uuid' })
-  enrollmentId!: string;
+  @ApiProperty({ type: String, format: 'uuid', nullable: true })
+  enrollmentId!: string | null;
   @ApiProperty({ format: 'uuid' })
   subscriptionId!: string;
 }

@@ -1,13 +1,17 @@
 import {
+  ClassParticipationService,
+  ParticipationSession,
+} from './class-participation.service';
+import { subscriptionCoversRecovery } from '../recoveries/recovery-domain';
+import {
   BadRequestException,
   ConflictException,
   Inject,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { ClassSessionStatus, Prisma, SubscriptionStatus } from '@prisma/client';
+import { ClassSessionStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma.service';
-import { StudentStatusHistoryService } from '../students/student-status-history.service';
 import {
   databaseDateToLocalDate,
   isoDayOfWeek,
@@ -60,7 +64,7 @@ export class ClassSessionsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly businessTime: BusinessTimeService,
-    private readonly studentStatusHistory: StudentStatusHistoryService,
+    private readonly participation: ClassParticipationService,
     @Inject(CLOCK) private readonly clock: Clock,
   ) {}
 
@@ -101,6 +105,7 @@ export class ClassSessionsService {
       if (inserted.count > 0) {
         await tx.auditLog.create({
           data: {
+            actorType: 'ADMIN',
             actorId,
             action: 'CLASS_SESSIONS_GENERATED',
             entity: 'ClassSession',
@@ -203,6 +208,7 @@ export class ClassSessionsService {
       });
       await tx.auditLog.create({
         data: {
+          actorType: 'ADMIN',
           actorId,
           action: 'CLASS_SESSION_CAPACITY_CHANGED',
           entity: 'ClassSession',
@@ -248,6 +254,30 @@ export class ClassSessionsService {
       ) {
         return current;
       }
+      const recoveries = await tx.recovery.findMany({
+        where: { recoverySessionId: id, cancelledAt: null },
+        include: { subscription: true },
+      });
+      const revised = { ...current, startAt, endAt };
+      const normal = await this.participation.normal(tx, revised);
+      for (const recovery of recoveries) {
+        if (
+          startAt <= recovery.authorizedAt ||
+          !subscriptionCoversRecovery(recovery.subscription, startAt) ||
+          normal.some((row) => row.student.id === recovery.studentId)
+        ) {
+          throw new ConflictException(
+            'El cambio horario invalida una recuperación autorizada',
+          );
+        }
+      }
+      if (
+        (await this.participation.reservations(tx, revised)).size >
+        current.capacity
+      )
+        throw new ConflictException(
+          'El cambio horario supera el cupo de la clase',
+        );
       const updated = await tx.classSession.update({
         where: { id },
         data: { startAt, endAt },
@@ -255,6 +285,7 @@ export class ClassSessionsService {
       });
       await tx.auditLog.create({
         data: {
+          actorType: 'ADMIN',
           actorId,
           action: 'CLASS_SESSION_TIME_CHANGED',
           entity: 'ClassSession',
@@ -297,6 +328,7 @@ export class ClassSessionsService {
       });
       await tx.auditLog.create({
         data: {
+          actorType: 'ADMIN',
           actorId,
           action: 'CLASS_SESSION_CANCELLED',
           entity: 'ClassSession',
@@ -339,7 +371,9 @@ export class ClassSessionsService {
           items: enrollments.map((enrollment) => ({
             studentId: enrollment.student.id,
             fullName: enrollment.student.fullName,
-            enrollmentId: enrollment.id,
+            enrollmentId: enrollment.enrollmentId,
+            recoveryId: enrollment.recoveryId,
+            origin: enrollment.origin,
             subscriptionId: enrollment.subscriptionId,
           })),
         };
@@ -350,62 +384,16 @@ export class ClassSessionsService {
 
   private async capacityReservationCount(
     tx: Prisma.TransactionClient,
-    session: {
-      scheduleId: string;
-      occurrenceDate: Date;
-      startAt: Date;
-      status: ClassSessionStatus;
-    },
+    session: ParticipationSession & { status: ClassSessionStatus },
   ) {
-    if (session.status === ClassSessionStatus.CANCELLED) return 0;
-    return tx.enrollment.count({
-      where: this.contractualEnrollmentWhere(session),
-    });
+    return (await this.participation.reservations(tx, session)).size;
   }
 
   findExpectedRecords(
     client: Prisma.TransactionClient | PrismaService,
-    session: {
-      scheduleId: string;
-      occurrenceDate: Date;
-      startAt: Date;
-    },
+    session: ParticipationSession,
   ) {
-    return client.enrollment.findMany({
-      where: {
-        ...this.contractualEnrollmentWhere(session),
-        student: this.studentStatusHistory.activeAtWhere(session.startAt),
-      },
-      select: {
-        id: true,
-        subscriptionId: true,
-        student: { select: { id: true, fullName: true } },
-      },
-      orderBy: [{ student: { fullName: 'asc' } }, { id: 'asc' }],
-    });
-  }
-
-  private contractualEnrollmentWhere(session: {
-    scheduleId: string;
-    occurrenceDate: Date;
-    startAt: Date;
-  }): Prisma.EnrollmentWhereInput {
-    return {
-      scheduleId: session.scheduleId,
-      validFrom: { lte: session.occurrenceDate },
-      validUntil: { gt: session.occurrenceDate },
-      subscription: {
-        periodStart: { lte: session.startAt },
-        periodEnd: { gt: session.startAt },
-        OR: [
-          { status: SubscriptionStatus.ACTIVE },
-          {
-            status: SubscriptionStatus.CANCELLED,
-            cancelledAt: { gt: session.startAt },
-          },
-        ],
-      },
-    };
+    return this.participation.expected(client, session);
   }
 
   private async withLockedSession<T>(

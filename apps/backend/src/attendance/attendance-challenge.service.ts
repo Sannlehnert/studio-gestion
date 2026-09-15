@@ -84,6 +84,7 @@ export class AttendanceChallengeService {
       });
       await tx.auditLog.create({
         data: {
+          actorType: 'ADMIN',
           actorId: adminId,
           action: 'ATTENDANCE_CHALLENGE_ISSUED',
           entity: 'AttendanceChallenge',

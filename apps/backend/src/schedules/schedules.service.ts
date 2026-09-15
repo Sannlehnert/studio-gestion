@@ -60,6 +60,7 @@ export class SchedulesService {
       });
       await tx.auditLog.create({
         data: {
+          actorType: 'ADMIN',
           actorId,
           action: 'SCHEDULE_CREATED',
           entity: 'Schedule',
@@ -171,6 +172,7 @@ export class SchedulesService {
       });
       await tx.auditLog.create({
         data: {
+          actorType: 'ADMIN',
           actorId,
           action: 'SCHEDULE_UPDATED',
           entity: 'Schedule',
@@ -210,6 +212,7 @@ export class SchedulesService {
       });
       await tx.auditLog.create({
         data: {
+          actorType: 'ADMIN',
           actorId,
           action: isActive ? 'SCHEDULE_ACTIVATED' : 'SCHEDULE_DEACTIVATED',
           entity: 'Schedule',

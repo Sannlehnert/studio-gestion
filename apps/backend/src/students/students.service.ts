@@ -43,6 +43,7 @@ export class StudentsService {
       });
       await tx.auditLog.create({
         data: {
+          actorType: 'ADMIN',
           actorId,
           action: 'STUDENT_CREATED',
           entity: 'Student',
@@ -122,6 +123,7 @@ export class StudentsService {
       });
       await tx.auditLog.create({
         data: {
+          actorType: 'ADMIN',
           actorId,
           action: 'STUDENT_UPDATED',
           entity: 'Student',
@@ -180,6 +182,7 @@ export class StudentsService {
       });
       await tx.auditLog.create({
         data: {
+          actorType: 'ADMIN',
           actorId,
           action: 'STUDENT_DEACTIVATED',
           entity: 'Student',
@@ -224,6 +227,7 @@ export class StudentsService {
       });
       await tx.auditLog.create({
         data: {
+          actorType: 'ADMIN',
           actorId,
           action: 'STUDENT_REACTIVATED',
           entity: 'Student',

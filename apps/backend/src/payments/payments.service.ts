@@ -120,6 +120,7 @@ export class PaymentsService {
         });
         await tx.auditLog.create({
           data: {
+            actorType: 'ADMIN',
             actorId,
             action: 'PAYMENT_REGISTERED',
             entity: 'Payment',
@@ -215,6 +216,7 @@ export class PaymentsService {
       });
       await tx.auditLog.create({
         data: {
+          actorType: 'ADMIN',
           actorId,
           action: 'PAYMENT_VOIDED',
           entity: 'Payment',

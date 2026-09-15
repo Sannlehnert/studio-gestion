@@ -1,3 +1,6 @@
+import { correctionReason } from './attendance-correction-domain';
+import { ParticipationOrigin } from '../class-sessions/class-participation.service';
+import { consumesAllowance } from '../recoveries/recovery-domain';
 import { AttendanceChallengeService } from './attendance-challenge.service';
 import {
   assertChallengeFormat,
@@ -39,8 +42,10 @@ const attendanceProjection = {
   subscriptionId: true,
   classSessionId: true,
   status: true,
+  originalStatus: true,
   source: true,
   recordedAt: true,
+  recoveryId: true,
 } satisfies Prisma.AttendanceSelect;
 
 type AttendanceView = Prisma.AttendanceGetPayload<{
@@ -57,7 +62,7 @@ type SessionForAttendance = {
   attendanceClosedAt: Date | null;
 };
 
-type UpcomingRow = SessionForAttendance & { subscriptionId: string };
+type UpcomingRow = SessionForAttendance;
 
 @Injectable()
 export class AttendanceService {
@@ -83,6 +88,32 @@ export class AttendanceService {
     challenge: string,
   ) {
     assertChallengeFormat(challenge);
+    return this.recordPresent(classSessionId, studentId, {
+      type: 'STUDENT',
+      challenge,
+    });
+  }
+
+  async markManualPresent(
+    classSessionId: string,
+    studentId: string,
+    reason: string,
+    adminId: string,
+  ) {
+    return this.recordPresent(classSessionId, studentId, {
+      type: 'ADMIN',
+      adminId,
+      reason: correctionReason(reason),
+    });
+  }
+
+  private async recordPresent(
+    classSessionId: string,
+    studentId: string,
+    actor:
+      | { type: 'STUDENT'; challenge: string }
+      | { type: 'ADMIN'; adminId: string; reason: string },
+  ) {
     return this.prisma.$transaction(async (tx) => {
       await this.lockClassSession(tx, classSessionId);
       const session = await this.findSession(tx, classSessionId);
@@ -92,6 +123,11 @@ export class AttendanceService {
         where: { studentId_classSessionId: { studentId, classSessionId } },
         select: attendanceProjection,
       });
+      if (actor.type === 'ADMIN' && existing) {
+        throw new ConflictException(
+          'La asistencia ya existe; utilizá una corrección administrativa',
+        );
+      }
       if (existing?.status === AttendanceStatus.ABSENT) {
         throw new ConflictException(
           'La clase ya fue cerrada con ausencia para la alumna',
@@ -101,7 +137,11 @@ export class AttendanceService {
         throw new ConflictException('La clase está cancelada');
       }
       if (session.status === ClassSessionStatus.COMPLETED) {
-        throw new ConflictException('La asistencia de la clase ya fue cerrada');
+        throw new ConflictException(
+          actor.type === 'ADMIN' && !existing
+            ? 'Anomalía de integridad: clase cerrada sin asistencia; requiere revisión administrativa'
+            : 'La asistencia de la clase ya fue cerrada',
+        );
       }
 
       const initialWindow = this.window(session, this.clock.now());
@@ -113,8 +153,12 @@ export class AttendanceService {
         );
       }
 
-      const qr = await this.challenges.find(tx, challenge);
-      assertChallengeValid(qr, classSessionId, this.clock.now());
+      const qr =
+        actor.type === 'STUDENT'
+          ? await this.challenges.find(tx, actor.challenge)
+          : null;
+      if (actor.type === 'STUDENT')
+        assertChallengeValid(qr, classSessionId, this.clock.now());
 
       await this.lockStudents(tx, [studentId]);
       const student = await tx.student.findUnique({
@@ -122,6 +166,8 @@ export class AttendanceService {
         select: { id: true, isActive: true },
       });
       if (!student?.isActive) {
+        if (actor.type === 'ADMIN')
+          throw new ConflictException('Alumna no disponible');
         throw new UnauthorizedException('Alumna no disponible');
       }
 
@@ -156,7 +202,8 @@ export class AttendanceService {
         );
       }
 
-      assertChallengeValid(qr, classSessionId, recordedAt);
+      if (actor.type === 'STUDENT')
+        assertChallengeValid(qr, classSessionId, recordedAt);
       if (existing?.status === AttendanceStatus.PRESENT) {
         return {
           classSession: {
@@ -166,11 +213,18 @@ export class AttendanceService {
             endAt: session.endAt,
           },
           window: finalWindow,
-          attendance: existing,
+          origin: existing.recoveryId
+            ? ParticipationOrigin.RECOVERY
+            : ParticipationOrigin.ENROLLMENT,
+          recoveryId: existing.recoveryId,
+          attendance: {
+            ...existing,
+            consumesAllowance: consumesAllowance(existing.recoveryId),
+          },
           classSummary: summary,
         };
       }
-      if (summary.remainingClasses === 0) {
+      if (expected.recoveryId === null && summary.remainingClasses === 0) {
         throw new ConflictException('La suscripción agotó sus clases');
       }
       const attendance = await tx.attendance.create({
@@ -178,27 +232,43 @@ export class AttendanceService {
           studentId,
           subscriptionId: expected.subscriptionId,
           classSessionId,
+          recoveryId: expected.recoveryId,
           status: AttendanceStatus.PRESENT,
-          source: AttendanceSource.STUDENT,
+          originalStatus: AttendanceStatus.PRESENT,
+          source:
+            actor.type === 'ADMIN'
+              ? AttendanceSource.ADMIN
+              : AttendanceSource.STUDENT,
+          ...(actor.type === 'ADMIN'
+            ? { createdByAdminId: actor.adminId, creationReason: actor.reason }
+            : {}),
           recordedAt,
         },
         select: attendanceProjection,
       });
       await tx.auditLog.create({
         data: {
-          actorId: studentId,
-          action: 'ATTENDANCE_PRESENT_RECORDED',
+          actorType: actor.type,
+          actorId: actor.type === 'ADMIN' ? actor.adminId : studentId,
+          action:
+            actor.type === 'ADMIN'
+              ? 'ATTENDANCE_MANUAL_PRESENT_RECORDED'
+              : 'ATTENDANCE_PRESENT_RECORDED',
           entity: 'Attendance',
           entityId: attendance.id,
           metadata: {
             classSessionId,
             subscriptionId: expected.subscriptionId,
+            ...(actor.type === 'ADMIN'
+              ? { studentId, reason: actor.reason }
+              : {}),
           },
         },
       });
       const response = await this.studentResponse(tx, session, attendance);
       const finishedAt = this.clock.now();
-      assertChallengeValid(qr, classSessionId, finishedAt);
+      if (actor.type === 'STUDENT')
+        assertChallengeValid(qr, classSessionId, finishedAt);
       if (
         this.window(session, finishedAt).status !== AttendanceWindowStatus.OPEN
       ) {
@@ -225,7 +295,14 @@ export class AttendanceService {
         }
         const subscriptionId =
           attendance?.subscriptionId ?? expected!.subscriptionId;
-        return this.studentResponse(tx, session, attendance, subscriptionId);
+        return this.studentResponse(
+          tx,
+          session,
+          attendance,
+          subscriptionId,
+          undefined,
+          attendance?.recoveryId ?? expected?.recoveryId ?? null,
+        );
       },
       { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead },
     );
@@ -240,25 +317,22 @@ export class AttendanceService {
         let cursor: { startAt: Date; id: string } | undefined;
         while (items.length < query.limit) {
           const rows = await tx.$queryRaw<UpcomingRow[]>(Prisma.sql`
-            SELECT
-              cs."id", cs."scheduleId", cs."occurrenceDate", cs."startAt",
-              cs."endAt", cs."status", cs."attendanceClosedAt",
-              e."subscriptionId"
+            SELECT cs."id", cs."scheduleId", cs."occurrenceDate", cs."startAt",
+              cs."endAt", cs."status", cs."attendanceClosedAt"
             FROM "ClassSession" cs
-            JOIN "Enrollment" e ON e."scheduleId" = cs."scheduleId"
-            JOIN "Subscription" s
-              ON s."id" = e."subscriptionId" AND s."studentId" = e."studentId"
-            WHERE e."studentId" = ${studentId}
-              AND e."validFrom" <= cs."occurrenceDate"
-              AND e."validUntil" > cs."occurrenceDate"
-              AND s."periodStart" <= cs."startAt"
-              AND s."periodEnd" > cs."startAt"
-              AND (
-                s."status" = 'ACTIVE'
-                OR (s."status" = 'CANCELLED' AND s."cancelledAt" > cs."startAt")
-              )
-              AND cs."status" = 'SCHEDULED'
+            WHERE cs."status" = 'SCHEDULED'
               AND cs."endAt" + (${this.closeAfterMinutes} * INTERVAL '1 minute') > ${now}
+              AND (
+                EXISTS (SELECT 1 FROM "Enrollment" e JOIN "Subscription" s ON s."id" = e."subscriptionId"
+                  WHERE e."studentId" = ${studentId} AND e."scheduleId" = cs."scheduleId"
+                    AND e."validFrom" <= cs."occurrenceDate" AND e."validUntil" > cs."occurrenceDate"
+                    AND s."periodStart" <= cs."startAt" AND s."periodEnd" > cs."startAt"
+                    AND (s."status" = 'ACTIVE' OR (s."status" = 'CANCELLED' AND s."cancelledAt" > cs."startAt")))
+                OR EXISTS (SELECT 1 FROM "Recovery" r JOIN "Subscription" s ON s."id" = r."subscriptionId"
+                  WHERE r."studentId" = ${studentId} AND r."recoverySessionId" = cs."id" AND r."cancelledAt" IS NULL
+                    AND s."periodStart" <= cs."startAt" AND s."periodEnd" > cs."startAt"
+                    AND (s."status" = 'ACTIVE' OR (s."status" = 'CANCELLED' AND s."cancelledAt" > cs."startAt")))
+              )
               ${
                 cursor
                   ? Prisma.sql`AND (cs."startAt", cs."id") > (${cursor.startAt}, ${cursor.id})`
@@ -280,6 +354,10 @@ export class AttendanceService {
             ) {
               continue;
             }
+            const expected = (
+              await this.classSessions.findExpectedRecords(tx, row)
+            ).find((item) => item.student.id === studentId);
+            if (!expected) continue;
             const attendance = await tx.attendance.findUnique({
               where: {
                 studentId_classSessionId: {
@@ -294,8 +372,9 @@ export class AttendanceService {
                 tx,
                 row,
                 attendance,
-                row.subscriptionId,
+                expected.subscriptionId,
                 now,
+                attendance?.recoveryId ?? expected.recoveryId,
               ),
             );
             if (items.length === query.limit) break;
@@ -362,8 +441,15 @@ export class AttendanceService {
             studentId: item.student.id,
             fullName: item.student.fullName,
             subscriptionId: item.subscriptionId,
+            origin: item.origin,
+            recoveryId: item.recoveryId,
             state,
-            attendance,
+            attendance: attendance
+              ? {
+                  ...attendance,
+                  consumesAllowance: consumesAllowance(attendance.recoveryId),
+                }
+              : null,
           };
         });
         const total = (state: AdminAttendanceItemState) =>
@@ -461,6 +547,7 @@ export class AttendanceService {
         by: ['subscriptionId'],
         where: {
           subscriptionId: { in: [...allowances.keys()] },
+          recoveryId: null,
         },
         _count: { _all: true },
       });
@@ -473,7 +560,7 @@ export class AttendanceService {
         if (existingStudents.has(item.student.id)) continue;
         const current = used.get(item.subscriptionId) ?? 0;
         const allowance = allowances.get(item.subscriptionId) ?? 0;
-        if (current >= allowance) {
+        if (item.recoveryId === null && current >= allowance) {
           unresolvedAllowance += 1;
           continue;
         }
@@ -482,13 +569,16 @@ export class AttendanceService {
             studentId: item.student.id,
             subscriptionId: item.subscriptionId,
             classSessionId,
+            recoveryId: item.recoveryId,
             status: AttendanceStatus.ABSENT,
+            originalStatus: AttendanceStatus.ABSENT,
             source: AttendanceSource.SYSTEM,
             recordedAt: now,
           },
         });
         existingStudents.add(item.student.id);
-        used.set(item.subscriptionId, current + 1);
+        if (item.recoveryId === null)
+          used.set(item.subscriptionId, current + 1);
         absencesCreated += 1;
       }
 
@@ -505,6 +595,7 @@ export class AttendanceService {
       if (absencesCreated > 0 || completed) {
         await tx.auditLog.create({
           data: {
+            actorType: 'SYSTEM',
             actorId: null,
             action: 'CLASS_SESSION_ATTENDANCE_RECONCILED',
             entity: 'ClassSession',
@@ -528,6 +619,7 @@ export class AttendanceService {
     attendance: AttendanceView | null,
     subscriptionId = attendance?.subscriptionId,
     now = this.clock.now(),
+    recoveryId: string | null = attendance?.recoveryId ?? null,
   ) {
     if (!subscriptionId) {
       throw new NotFoundException('Suscripción de asistencia no encontrada');
@@ -540,7 +632,16 @@ export class AttendanceService {
         endAt: session.endAt,
       },
       window: this.window(session, now),
-      attendance,
+      origin: recoveryId
+        ? ParticipationOrigin.RECOVERY
+        : ParticipationOrigin.ENROLLMENT,
+      recoveryId,
+      attendance: attendance
+        ? {
+            ...attendance,
+            consumesAllowance: consumesAllowance(attendance.recoveryId),
+          }
+        : null,
       classSummary: await this.classSummaryTx(tx, subscriptionId),
     };
   }
@@ -556,7 +657,7 @@ export class AttendanceService {
     });
     if (!subscription) throw new NotFoundException('Suscripción no encontrada');
     const usedClasses = await tx.attendance.count({
-      where: { subscriptionId },
+      where: { subscriptionId, recoveryId: null },
     });
     return {
       subscriptionId,

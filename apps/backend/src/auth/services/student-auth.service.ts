@@ -38,6 +38,7 @@ export class StudentAuthService {
       });
       await tx.auditLog.create({
         data: {
+          actorType: 'ADMIN',
           actorId,
           action: 'STUDENT_ACCESS_CREATED',
           entity: 'StudentAccess',
@@ -103,6 +104,7 @@ export class StudentAuthService {
       );
       await tx.auditLog.create({
         data: {
+          actorType: 'STUDENT',
           actorId: access.studentId,
           action: 'STUDENT_ACCESS_ACTIVATED',
           entity: 'StudentAccess',
@@ -138,6 +140,7 @@ export class StudentAuthService {
       if (changed.count === 1) {
         await tx.auditLog.create({
           data: {
+            actorType: 'ADMIN',
             actorId,
             action: 'STUDENT_ACCESS_REVOKED',
             entity: 'StudentAccess',

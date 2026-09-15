@@ -1,3 +1,4 @@
+import { ParticipationOrigin } from '../../class-sessions/class-participation.service';
 import { Type } from 'class-transformer';
 import { IsInt, Max, Min } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
@@ -41,6 +42,12 @@ export class AttendanceWindowDto {
 }
 
 export class AttendanceResponseDto {
+  @ApiProperty({ type: String, format: 'uuid', nullable: true }) recoveryId!:
+    string | null;
+  @ApiProperty({
+    description: 'Derivado: sólo Attendance habitual consume allowance',
+  })
+  consumesAllowance!: boolean;
   @ApiProperty({ format: 'uuid' })
   id!: string;
   @ApiProperty({ format: 'uuid' })
@@ -51,6 +58,11 @@ export class AttendanceResponseDto {
   classSessionId!: string;
   @ApiProperty({ enum: AttendanceStatus })
   status!: AttendanceStatus;
+  @ApiProperty({
+    enum: AttendanceStatus,
+    description: 'Estado original inmutable',
+  })
+  originalStatus!: AttendanceStatus;
   @ApiProperty({ enum: AttendanceSource })
   source!: AttendanceSource;
   @ApiProperty({ format: 'date-time' })
@@ -69,6 +81,9 @@ class StudentClassSessionDto {
 }
 
 export class StudentAttendanceResponseDto {
+  @ApiProperty({ enum: ParticipationOrigin }) origin!: ParticipationOrigin;
+  @ApiProperty({ type: String, format: 'uuid', nullable: true }) recoveryId!:
+    string | null;
   @ApiProperty({ type: StudentClassSessionDto })
   classSession!: StudentClassSessionDto;
   @ApiProperty({ type: AttendanceWindowDto })
@@ -95,6 +110,9 @@ export enum AdminAttendanceItemState {
 }
 
 class AdminAttendanceStudentDto {
+  @ApiProperty({ enum: ParticipationOrigin }) origin!: ParticipationOrigin;
+  @ApiProperty({ type: String, format: 'uuid', nullable: true }) recoveryId!:
+    string | null;
   @ApiProperty({ format: 'uuid' })
   studentId!: string;
   @ApiProperty()

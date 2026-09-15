@@ -1,3 +1,4 @@
+import { ClassParticipationService } from './class-participation.service';
 import { Module } from '@nestjs/common';
 import { AuthModule } from '../auth/auth.module';
 import { BusinessTimeModule } from '../time/business-time.module';
@@ -8,7 +9,7 @@ import { ClassSessionsService } from './class-sessions.service';
 @Module({
   imports: [AuthModule, BusinessTimeModule, StudentsModule],
   controllers: [AdminClassSessionsController],
-  providers: [ClassSessionsService],
-  exports: [ClassSessionsService],
+  providers: [ClassParticipationService, ClassSessionsService],
+  exports: [ClassParticipationService, ClassSessionsService],
 })
 export class ClassSessionsModule {}

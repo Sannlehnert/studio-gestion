@@ -1,3 +1,4 @@
+import { ClassParticipationService } from '../class-sessions/class-participation.service';
 import {
   BadRequestException,
   ConflictException,
@@ -60,6 +61,7 @@ type ParentFilter =
 export class EnrollmentsService {
   constructor(
     private readonly prisma: PrismaService,
+    private readonly participation: ClassParticipationService,
     private readonly businessTime: BusinessTimeService,
   ) {}
 
@@ -95,7 +97,13 @@ export class EnrollmentsService {
           dto.validFrom,
           dto.validUntil,
         );
-        await this.assertCapacity(tx, schedule, dto.validFrom, dto.validUntil);
+        await this.assertCapacity(
+          tx,
+          schedule,
+          dto.validFrom,
+          dto.validUntil,
+          dto.studentId,
+        );
         const created = await tx.enrollment.create({
           data: {
             studentId: dto.studentId,
@@ -108,6 +116,7 @@ export class EnrollmentsService {
         });
         await tx.auditLog.create({
           data: {
+            actorType: 'ADMIN',
             actorId,
             action: 'ENROLLMENT_CREATED',
             entity: 'Enrollment',
@@ -223,6 +232,7 @@ export class EnrollmentsService {
       });
       await tx.auditLog.create({
         data: {
+          actorType: 'ADMIN',
           actorId,
           action: 'ENROLLMENT_ENDED',
           entity: 'Enrollment',
@@ -301,7 +311,13 @@ export class EnrollmentsService {
           dto.effectiveDate,
           validUntil,
         );
-        await this.assertCapacity(tx, target!, dto.effectiveDate, validUntil);
+        await this.assertCapacity(
+          tx,
+          target!,
+          dto.effectiveDate,
+          validUntil,
+          identity.studentId,
+        );
         const endedEnrollment = await tx.enrollment.update({
           where: { id },
           data: { validUntil: localDateToDatabaseDate(dto.effectiveDate) },
@@ -319,6 +335,7 @@ export class EnrollmentsService {
         });
         await tx.auditLog.create({
           data: {
+            actorType: 'ADMIN',
             actorId,
             action: 'ENROLLMENT_SCHEDULE_CHANGED',
             entity: 'Enrollment',
@@ -478,6 +495,7 @@ export class EnrollmentsService {
     },
     validFrom: string,
     validUntil: string,
+    studentId: string,
   ) {
     const rows = await tx.enrollment.findMany({
       where: {
@@ -514,20 +532,31 @@ export class EnrollmentsService {
         },
         status: { not: ClassSessionStatus.CANCELLED },
       },
-      select: { occurrenceDate: true, capacity: true },
+      select: {
+        id: true,
+        scheduleId: true,
+        occurrenceDate: true,
+        startAt: true,
+        status: true,
+        capacity: true,
+      },
     });
     for (const session of sessions) {
-      const date = databaseDateToLocalDate(session.occurrenceDate);
-      const expected =
-        existing.filter(
-          (interval) =>
-            interval.validFrom <= date && date < interval.validUntil,
-        ).length + 1;
-      if (expected > session.capacity) {
+      const recoveries = await this.participation.recoveries(
+        tx,
+        session,
+        false,
+      );
+      if (recoveries.some((row) => row.student.id === studentId))
+        throw new ConflictException(
+          'La inscripción se superpone con una recuperación; cancelala antes de inscribir',
+        );
+      const occupied = await this.participation.reservations(tx, session);
+      occupied.add(studentId);
+      if (occupied.size > session.capacity)
         throw new ConflictException(
           'Una clase ya generada no tiene cupo para toda la vigencia',
         );
-      }
     }
   }
 
@@ -622,17 +651,18 @@ export class EnrollmentsService {
     subscriptionId: string,
     scheduleIds: string[],
   ) {
+    // Schedule(s) first: compatible with ClassSession/Recovery capacity locks.
+    for (const scheduleId of [...new Set(scheduleIds)].sort()) {
+      await tx.$queryRaw(
+        Prisma.sql`SELECT "id" FROM "Schedule" WHERE "id" = ${scheduleId} FOR UPDATE`,
+      );
+    }
     await tx.$queryRaw(
       Prisma.sql`SELECT "id" FROM "Student" WHERE "id" = ${studentId} FOR UPDATE`,
     );
     await tx.$queryRaw(
       Prisma.sql`SELECT "id" FROM "Subscription" WHERE "id" = ${subscriptionId} FOR UPDATE`,
     );
-    for (const scheduleId of [...new Set(scheduleIds)].sort()) {
-      await tx.$queryRaw(
-        Prisma.sql`SELECT "id" FROM "Schedule" WHERE "id" = ${scheduleId} FOR UPDATE`,
-      );
-    }
   }
 
   private async lockEnrollment(tx: Prisma.TransactionClient, id: string) {

@@ -1,3 +1,4 @@
+import { BusinessTimeModule } from '../time/business-time.module';
 import { Module } from '@nestjs/common';
 import { AuthModule } from '../auth/auth.module';
 import {
@@ -7,7 +8,7 @@ import {
 import { SubscriptionsService } from './subscriptions.service';
 
 @Module({
-  imports: [AuthModule],
+  imports: [AuthModule, BusinessTimeModule],
   controllers: [
     AdminSubscriptionsController,
     AdminStudentSubscriptionsController,

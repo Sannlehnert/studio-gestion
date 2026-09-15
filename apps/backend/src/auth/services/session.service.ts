@@ -82,6 +82,7 @@ export class SessionService {
       if (changed.count === 1) {
         await tx.auditLog.create({
           data: {
+            actorType: session.role,
             actorId: session.userId,
             action: 'SESSION_REVOKED',
             entity: 'Session',

@@ -19,4 +19,14 @@ API NestJS de Studio Gestión. La instalación, Docker, variables de entorno, Pr
 
 Contratos y decisiones: [API](../../docs/api-conventions.md), [Auth](../../docs/authentication.md), [Students](../../docs/students.md), [scheduling](../../docs/scheduling.md), [Attendance](../../docs/attendance.md) y [seguridad](../../docs/security.md).
 
-Auth, Students, núcleo comercial, scheduling, Attendance e historial temporal de actividad están implementados. Recoveries, QR y Frontend no están implementados.
+Auth, Students, núcleo comercial, scheduling, Attendance, historial temporal, QR, Recoveries, correcciones administrativas y auditoría operativa están implementados. Frontend no está iniciado.
+
+## Etapa 7
+
+- src/attendance/attendance-corrections.service.ts: correcciones transaccionales e historial.
+- src/attendance/attendance.service.ts: PRESENT Student/Admin, elegibilidad y consumo.
+- src/audit/: consulta Admin y metadata pública por evento.
+- test/admin-corrections*.e2e-spec.ts: integración, carreras y HTTP.
+- test/verify-admin-corrections-migration.mjs: fresh, upgrade 6→7 y guardias históricas.
+
+[Correcciones](../../docs/admin-corrections.md), [auditoría](../../docs/operational-audit.md), [resultados finales](../../docs/stage-7-validation.md).

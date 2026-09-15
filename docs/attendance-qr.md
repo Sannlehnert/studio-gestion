@@ -4,7 +4,7 @@
 
 El QR prueba únicamente posesión de un challenge temporal de una ClassSession. No autentica, no identifica a la Student y no demuestra presencia física. La sesión determina identidad; Student/StudentActivePeriod, Enrollment, Subscription y ClassSession determinan elegibilidad; Attendance determina consumo. El reloj del backend decide vigencia.
 
-Se reutiliza AttendanceModule, TokenService, CLOCK, Prisma y los guards existentes. No hay PNG, endpoint alternativo de PRESENT, GPS, mecanismo de proximidad, scheduler QR ni endpoint de estado sin necesidad de producto. Recoveries sigue fuera de alcance.
+Se reutiliza AttendanceModule, TokenService, CLOCK, Prisma y los guards existentes. No hay PNG, endpoint alternativo de PRESENT, GPS, mecanismo de proximidad, scheduler QR ni endpoint de estado sin necesidad de producto. Etapa 6 reutiliza este mecanismo para Recoveries adicionales autorizadas.
 
 ## Alternativas evaluadas
 
@@ -52,7 +52,7 @@ PostgreSQL protege tokenHash UNIQUE, formato del hash, límites de fechas, FKs R
 
 ## PRESENT, replay y tiempo
 
-El token es compartido: no se consume globalmente. Dos Students elegibles pueden usarlo; dos pedidos de la misma Student producen una sola Attendance y un único consumo. Un PRESENT previo no permite omitir el challenge: si expiró, fue revocado o corresponde a otra clase, el replay se rechaza. ABSENT no se transforma en PRESENT.
+El token es compartido: no se consume globalmente. Dos Students elegibles pueden usarlo; dos pedidos de la misma Student producen una sola Attendance y un único consumo. Un PRESENT previo no permite omitir el challenge: si expiró, fue revocado o corresponde a otra clase, el replay se rechaza. El endpoint Student no transforma ABSENT en PRESENT; la corrección Admin es un caso auditado separado.
 
 El servicio consulta y verifica el hash mientras mantiene el lock ClassSession, antes de continuar con las reglas existentes. Revalida el tiempo después de los locks y del cálculo de consumo, inmediatamente antes del alta o del retorno idempotente. Para una nueva asistencia vuelve a verificar al finalizar las escrituras y la consulta de respuesta: si observa vencimiento, revierte también AuditLog.
 
@@ -114,3 +114,11 @@ Sin GPS, Bluetooth, NFC ni device attestation, no se puede demostrar que una Stu
 `20260910120000_attendance_challenge` agrega únicamente la tabla, secuencia, constraints e índices. No transforma Attendance existente. `test:migration:qr` ejecuta fresh y upgrade 4.1 → 5 con datos históricos y compara snapshots antes/después. Usa exclusivamente TEST_DATABASE_URL con base terminada en `_test`, schemas aleatorios y limpieza de sus propios recursos.
 
 Las pruebas unitarias verifican formato, entropía, hash, status y límites con reloj fijo. Integration comprueba constraints reales, hash sin plaintext, rotación, cancelación, replay, Student ajena, actividad histórica, ventana y carreras. HTTP prueba roles, CSRF, payloads, límites por identidad, secretos ausentes, OpenAPI y vencimiento controlado. El flujo completo Admin → Student → Plan → Subscription → Schedule → Enrollment → ClassSession → activación → QR → PRESENT está en la suite Attendance previa adaptada al nuevo requisito. Resultados en [stage-5-validation.md](stage-5-validation.md).
+
+## Recoveries y QR
+
+Una autorización Recovery válida entra en expected para su ClassSession, sin Enrollment artificial. PRESENT reutiliza exactamente emisión, token, hash, TTL, rate limit, validación de replay y ventana. Sólo cambia la elegibilidad y la derivación de consumo: la autorización adicional no consume allowance otra vez. Una Recovery cancelada o contrato inválido no permite PRESENT aunque el challenge siga siendo válido para otras alumnas. No se agrega QR especial ni se guardan secretos en Recovery.
+
+## Excepción administrativa explícita (Etapa 7)
+
+Admin puede crear PRESENT manual sin challenge ante una falla del dispositivo, exclusivamente dentro de la ventana, con motivo y elegibilidad completa. Sólo una corrección Admin puede cambiar un resultado ya persistido. Esto no altera la validación ni los reintentos del endpoint Student.

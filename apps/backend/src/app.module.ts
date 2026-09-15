@@ -1,3 +1,5 @@
+import { AuditModule } from './audit/audit.module';
+import { RecoveriesModule } from './recoveries/recoveries.module';
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { validate } from './config/env.validation';
@@ -34,6 +36,8 @@ import { AttendanceModule } from './attendance/attendance.module';
     EnrollmentsModule,
     ClassSessionsModule,
     AttendanceModule,
+    RecoveriesModule,
+    AuditModule,
   ],
   controllers: [HealthController],
 })

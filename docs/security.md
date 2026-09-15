@@ -96,3 +96,13 @@ El secreto se transporta sólo en body JSON y en la respuesta de emisión, nunca
 El límite general de 300/min por IP es secundario y configurable: un grupo grande con múltiples peticiones puede agotarlo; hay que dimensionarlo con tráfico real. El límite específico de PRESENT ya no agrupa a todas las alumnas de la sala. Antes de varias instancias, ambos contadores autenticados necesitan un store compartido; la integridad ya depende de transacciones PostgreSQL, no de esos contadores.
 
 Durante la validación online de Etapa 5 npm audit detectó cuatro avisos de Multer 2.2.0 propagados como cinco dependencias vulnerables. Se agregó un override acotado a @nestjs/platform-express → multer 2.3.0, dentro del mismo major. La [versión oficial](https://github.com/expressjs/multer/releases/tag/v2.3.0) corrige GHSA-wc9g-mqfw-jrwm, GHSA-qfvm-cv95-jqjf, GHSA-qvfw-j98x-7q72 y GHSA-535w-7cp7-47q4. No se usan interceptores de archivos y JSON-only mantiene uploads rechazados. Sólo ese paquete cambió en el lockfile; suite completa, build y audit online posteriores pasaron. Retirar el override cuando Nest declare la dependencia corregida.
+
+## Recuperaciones
+
+AdminGuard restringe autorización/cancelación y StudentGuard deriva propiedad para lecturas/PRESENT. Sólo targetClassSessionId o reason ingresan al caso de uso; no se aceptan Student, Subscription, autor, estado o consumo externos. DTOs limitan UUIDs, motivo y paginación; CSRF/no-store/error sanitization se reutilizan.
+
+Los FKs compuestos impiden vínculos cruzados; los índices parciales protegen doble autorización y destino; locks PostgreSQL mantienen cupo y exclusión entre cancelación/PRESENT/reconciliación. Recovery nunca vuelve gratuita una clase habitual, ni habilita cadenas desde una ausencia de Recovery. Auditoría atómica con actor real; cancelación de clase/contrato deriva indisponibilidad y no inventa otro Admin. Los detalles y casos de seguridad están en [Recoveries](recoveries.md).
+
+## Correcciones y auditoría (Etapa 7)
+
+Los cuatro endpoints nuevos requieren Admin autenticado. POST conserva defensa CSRF/Origin, límites generales y DTOs estrictos. El cliente no elige autor, timestamp, source, contrato, recoveryId o consumo. El servidor resuelve y bloquea identidades. Historial inmutable y constraints cubren carreras; rate limiting no sostiene integridad. La consulta de auditoría proyecta metadata por acción, sin secretos. Student no accede al historial administrativo ni puede omitir QR. [Reglas](admin-corrections.md), [auditoría](operational-audit.md).

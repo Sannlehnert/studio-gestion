@@ -76,3 +76,9 @@ Todos requieren sesión ADMIN. Los POST/PATCH requieren Origin o Referer permiti
 ## Migración
 
 `20260904180000_scheduling_core` reemplaza el modelo provisional. Como los DateTime antiguos de Schedule no definen con certeza una recurrencia local y Enrollment apuntaba a una clase, la migración sólo puede convertir una instalación sin filas de scheduling. Si encuentra Schedule, ClassSession o Enrollment, aborta antes de abrir la transacción destructiva y exige un mapeo manual. El verificador prueba fresh, upgrade vacío y el guard sobre PostgreSQL real.
+
+## Integración con Recoveries
+
+Expected combina Enrollment normal y Recovery válida por Student, contrato e historial. El cupo agrega las autorizaciones a las reservas contractuales habituales; inactividad de Student no libera por sí sola una reserva que podría volver con reactivación. No se agrega Enrollment artificial. Crear/mover Enrollment rechaza cubrir una autorización vigente y controla la capacidad de cada clase generada.
+
+Una Recovery normal no coexiste con pertenencia habitual en el mismo destino; la deduplicación defensiva conserva el consumo normal. Capacidad y cambio horario de ClassSession consultan la misma unión bajo Schedule → ClassSession. Cambiar hora conserva fecha e identidad, revalida contrato/cronología y adapta ventana. Cancelar clase mantiene las Recoveries trazables como UNAVAILABLE, sin ABSENT. Ver [modelo y locks](recoveries.md).

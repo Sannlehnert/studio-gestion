@@ -139,24 +139,13 @@ async function historicalFixture(prisma) {
       capacity: 10,
     },
   });
-  const attendance = await prisma.attendance.create({
-    data: {
-      studentId: student.id,
-      subscriptionId: subscription.id,
-      classSessionId: session.id,
-      status: 'PRESENT',
-      source: 'STUDENT',
-      recordedAt: new Date('2026-01-05T13:05:00Z'),
-    },
-  });
-  await prisma.auditLog.create({
-    data: {
-      actorId: student.id,
-      action: 'ATTENDANCE_PRESENT_RECORDED',
-      entity: 'Attendance',
-      entityId: attendance.id,
-    },
-  });
+  const attendance = { id: randomUUID() };
+  await prisma.$executeRaw(
+    Prisma.sql`INSERT INTO "Attendance" (id,"studentId","subscriptionId","classSessionId",status,source,"recordedAt") VALUES (${attendance.id},${student.id},${subscription.id},${session.id},'PRESENT','STUDENT',TIMESTAMP '2026-01-05 13:05:00')`,
+  );
+  await prisma.$executeRaw(
+    Prisma.sql`INSERT INTO "AuditLog" (id,action,entity,"entityId") VALUES (${randomUUID()},'ATTENDANCE_PRESENT_RECORDED','Attendance',${attendance.id})`,
+  );
 }
 async function snapshot(prisma) {
   return JSON.stringify(
@@ -165,8 +154,29 @@ async function snapshot(prisma) {
       prisma.studentActivePeriod.findMany(),
       prisma.subscription.findMany(),
       prisma.classSession.findMany(),
-      prisma.attendance.findMany(),
-      prisma.auditLog.findMany(),
+      prisma.attendance.findMany({
+        select: {
+          id: true,
+          studentId: true,
+          subscriptionId: true,
+          classSessionId: true,
+          status: true,
+          source: true,
+          recordedAt: true,
+        },
+      }),
+      prisma.auditLog.findMany({
+        select: {
+          id: true,
+          actorId: true,
+          action: true,
+          entity: true,
+          entityId: true,
+          metadata: true,
+          createdAt: true,
+        },
+        orderBy: { id: 'asc' },
+      }),
     ]),
   );
 }

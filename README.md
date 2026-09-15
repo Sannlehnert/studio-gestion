@@ -11,9 +11,13 @@ Sistema web para que una profesora gestione sus clases y alumnas, con énfasis e
 - Schedules + Enrollments + ClassSessions: COMPLETE
 - Attendance Engine + Absences: COMPLETE
 - Historical Student Eligibility: COMPLETE
+- Dynamic QR Attendance Challenge: COMPLETE
+- Recoveries: COMPLETE
+- Admin Corrections + Operational Audit: COMPLETE
+- BACKEND FUNCTIONAL CORE: COMPLETE
 - Frontend: NOT STARTED
 
-El cierre y sus límites están en [validación de Fase 0](docs/phase-0-validation.md). La existencia de modelos Prisma de negocio no implica que tengan endpoints implementados.
+El cierre funcional actual está en [validación de Etapa 7](docs/stage-7-validation.md); la [validación de Fase 0](docs/phase-0-validation.md) conserva su evidencia histórica. La existencia de modelos Prisma de negocio no implica que tengan endpoints implementados.
 
 ## Stack y estructura
 
@@ -133,4 +137,12 @@ No se necesita eliminar contenedores de desarrollo por un aviso de servicios aje
 - [Baseline de seguridad](docs/security.md)
 - [Auditoría y validación de Fase 0](docs/phase-0-validation.md)
 
-La próxima etapa evaluada es Dynamic QR Attendance Challenge. No se inició en esta etapa.
+El núcleo funcional del backend está cerrado hasta Etapa 7. Próximo paso sujeto a nuevo prompt: FRONTEND — FASE 0: PRODUCT UX + INFORMATION ARCHITECTURE. No hay frontend iniciado.
+
+## Cierre funcional Etapa 7
+
+- [Correcciones administrativas y PRESENT manual](docs/admin-corrections.md)
+- [Auditoría operativa](docs/operational-audit.md)
+- [Validación final](docs/stage-7-validation.md)
+
+Desde la raíz: `npm --workspace apps/backend run test:migration:corrections` verifica fresh, upgrade 6→7 y guardias de atribución histórica en schemas efímeros de la base *_test. No usa la DB de desarrollo. `npm --workspace apps/backend run test:e2e` incluye integración PostgreSQL, concurrencia y HTTP. `npm --workspace apps/backend audit` incluye dependencias de desarrollo.

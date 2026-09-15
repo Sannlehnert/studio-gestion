@@ -1,3 +1,4 @@
+import { ClassSessionsModule } from '../class-sessions/class-sessions.module';
 import { Module } from '@nestjs/common';
 import { AuthModule } from '../auth/auth.module';
 import { BusinessTimeModule } from '../time/business-time.module';
@@ -10,7 +11,7 @@ import {
 import { EnrollmentsService } from './enrollments.service';
 
 @Module({
-  imports: [AuthModule, BusinessTimeModule],
+  imports: [AuthModule, BusinessTimeModule, ClassSessionsModule],
   controllers: [
     AdminEnrollmentsController,
     AdminStudentEnrollmentsController,

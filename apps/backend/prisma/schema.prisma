@@ -23,19 +23,13 @@ enum AttendanceStatus {
 enum AttendanceSource {
   STUDENT
   SYSTEM
+  ADMIN
 }
 
 enum ClassSessionStatus {
   SCHEDULED
   CANCELLED
   COMPLETED
-}
-
-enum RecoveryStatus {
-  PENDING
-  USED
-  EXPIRED
-  REVOKED
 }
 
 enum SubscriptionStatus {
@@ -56,13 +50,23 @@ enum PaymentMethod {
 
 // --------- Models ---------
 
+enum AuditActorType {
+  ADMIN
+  STUDENT
+  SYSTEM
+}
+
 model Admin {
-  attendanceChallenges AttendanceChallenge[]
-  id                   String                @id @default(uuid())
-  email                String                @unique
-  passwordHash         String
-  createdAt            DateTime              @default(now())
-  updatedAt            DateTime              @updatedAt
+  manualAttendances     Attendance[]
+  attendanceCorrections AttendanceCorrection[]
+  recoveriesAuthorized  Recovery[]             @relation("RecoveryAuthorizedBy")
+  recoveriesCancelled   Recovery[]             @relation("RecoveryCancelledBy")
+  attendanceChallenges  AttendanceChallenge[]
+  id                    String                 @id @default(uuid())
+  email                 String                 @unique
+  passwordHash          String
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
 
   paymentsCreated   Payment[]      @relation("PaymentCreatedBy")
   paymentsVoided    Payment[]      @relation("PaymentVoidedBy")
@@ -240,59 +244,90 @@ model Enrollment {
 }
 
 model Attendance {
-  id             String           @id @default(uuid())
-  studentId      String
-  subscriptionId String
-  classSessionId String
-  status         AttendanceStatus @default(PRESENT)
-  source         AttendanceSource
-  recordedAt     DateTime         @default(now())
+  id               String                 @id @default(uuid())
+  studentId        String
+  subscriptionId   String
+  classSessionId   String
+  originalStatus   AttendanceStatus
+  createdByAdminId String?
+  creationReason   String?                @db.VarChar(500)
+  createdByAdmin   Admin?                 @relation(fields: [createdByAdminId], references: [id], onDelete: Restrict)
+  corrections      AttendanceCorrection[]
+  status           AttendanceStatus       @default(PRESENT)
+  source           AttendanceSource
+  recordedAt       DateTime               @default(now())
 
-  recovery Recovery? @relation("RecoveryOriginalAbsence")
+  recoveries Recovery[] @relation("RecoveryOriginalAbsence")
+  recoveryId String?    @unique
+  recovery   Recovery?  @relation("RecoveryResult", fields: [recoveryId, studentId, subscriptionId, classSessionId], references: [id, studentId, subscriptionId, recoverySessionId], onDelete: Restrict)
 
   student      Student      @relation(fields: [studentId], references: [id], onDelete: Restrict)
   subscription Subscription @relation(fields: [subscriptionId, studentId], references: [id, studentId], onDelete: Restrict)
   classSession ClassSession @relation(fields: [classSessionId], references: [id], onDelete: Restrict)
 
   @@unique([studentId, classSessionId])
+  @@unique([id, studentId, subscriptionId])
+  @@unique([recoveryId, studentId, subscriptionId, classSessionId], map: "Attendance_recovery_identity_key")
   @@index([classSessionId, status])
   @@index([subscriptionId, status])
 }
 
 model Recovery {
-  id                String         @id @default(uuid())
-  studentId         String
-  subscriptionId    String
-  originalAbsenceId String
-  recoverySessionId String
-  status            RecoveryStatus @default(PENDING)
-  createdAt         DateTime       @default(now())
-  usedAt            DateTime?
-  expiresAt         DateTime?
-  note              String?
+  id                  String       @id @default(uuid())
+  studentId           String
+  subscriptionId      String
+  originalAbsenceId   String
+  recoverySessionId   String
+  authorizedByAdminId String
+  authorizedAt        DateTime     @default(now())
+  cancelledAt         DateTime?
+  cancelledByAdminId  String?
+  cancellationReason  String?      @db.VarChar(500)
+  student             Student      @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  subscription        Subscription @relation(fields: [subscriptionId, studentId], references: [id, studentId], onDelete: Restrict)
+  originalAbsence     Attendance   @relation("RecoveryOriginalAbsence", fields: [originalAbsenceId, studentId, subscriptionId], references: [id, studentId, subscriptionId], onDelete: Restrict)
+  recoverySession     ClassSession @relation("RecoverySession", fields: [recoverySessionId], references: [id], onDelete: Restrict)
+  authorizedBy        Admin        @relation("RecoveryAuthorizedBy", fields: [authorizedByAdminId], references: [id], onDelete: Restrict)
+  cancelledBy         Admin?       @relation("RecoveryCancelledBy", fields: [cancelledByAdminId], references: [id], onDelete: Restrict)
+  attendance          Attendance?  @relation("RecoveryResult")
 
-  student         Student      @relation(fields: [studentId], references: [id], onDelete: Restrict)
-  subscription    Subscription @relation(fields: [subscriptionId, studentId], references: [id, studentId], onDelete: Restrict)
-  originalAbsence Attendance   @relation("RecoveryOriginalAbsence", fields: [originalAbsenceId], references: [id])
-  recoverySession ClassSession @relation("RecoverySession", fields: [recoverySessionId], references: [id])
-
-  @@unique([originalAbsenceId])
-  @@index([studentId, subscriptionId])
+  @@unique([id, studentId, subscriptionId, recoverySessionId])
+  @@index([originalAbsenceId, authorizedAt])
+  @@index([studentId, authorizedAt, id])
   @@index([recoverySessionId])
 }
 
+model AttendanceCorrection {
+  id                 String           @id @default(uuid())
+  attendanceId       String
+  sequence           Int
+  previousStatus     AttendanceStatus
+  targetStatus       AttendanceStatus
+  reason             String           @db.VarChar(500)
+  correctedByAdminId String
+  correctedAt        DateTime         @default(now())
+  attendance         Attendance       @relation(fields: [attendanceId], references: [id], onDelete: Restrict)
+  correctedByAdmin   Admin            @relation(fields: [correctedByAdminId], references: [id], onDelete: Restrict)
+
+  @@unique([attendanceId, sequence])
+  @@index([correctedByAdminId])
+}
+
 model AuditLog {
-  id        String   @id @default(uuid())
+  actorType AuditActorType
+  id        String         @id @default(uuid())
   actorId   String?
   action    String
   entity    String?
   entityId  String?
   metadata  Json?
-  createdAt DateTime @default(now())
+  createdAt DateTime       @default(now())
 
   @@index([actorId])
   @@index([entity, entityId])
-  @@index([createdAt])
+  @@index([createdAt, id])
+  @@index([actorType, actorId, createdAt, id])
+  @@index([action, createdAt, id])
 }
 
 enum SessionRole {

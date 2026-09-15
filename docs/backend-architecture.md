@@ -77,3 +77,13 @@ AttendanceService recibe challenge obligatorio, consulta su hash dentro de la tr
 ClassSessionsService utiliza CLOCK para la cancelación y revoca challenges bajo el mismo bloqueo. No se alteraron las reglas de cancelación ni el motor ABSENT. El orden de bloqueo continúa siendo compatible: cancelación Schedule → ClassSession; PRESENT ClassSession → Student → Subscription; emisión sólo ClassSession. No existe un camino inverso desde QR hacia Schedule.
 
 Los límites autenticados reutilizan express-rate-limit/MemoryStore y se liberan al cerrar el módulo. Attendance usa Student.id; QR usa Admin.id + ClassSession. La IP queda protegida por el límite general previo. No se usan cookies, tokens, headers de identidad ni datos del body como clave.
+
+## Composición de Recoveries
+
+RecoveriesModule agrega controllers Admin/Student, DTOs y RecoveriesService. ClassParticipationService, dentro de ClassSessionsModule, comparte expected y reservas con Attendance/Enrollments/Recoveries sin Repository Pattern ni dependencias circulares entre módulos. La dependencia de Attendance sobre recovery-domain sólo reutiliza reglas puras.
+
+Orden de locks de las operaciones que compiten: Schedule(s) ordenados → ClassSession → Student(s) ordenados → Subscription(s) ordenados → registros dependientes. Se reordenó únicamente el contexto de Enrollment, que antes tomaba Student antes de Schedule y formaba un ciclo alcanzable con autorización Recovery. El resto conserva su orden como subsecuencia. Ver la enumeración, demostración y prueba coordinada en [Recoveries](recoveries.md#transacciones-y-análisis-de-locks). Subscription cancelación toma CLOCK dentro del lock para preservar la frontera histórica.
+
+## Etapa 7
+
+AttendanceService comparte el registro entre Student con QR y Admin manual mediante un actor interno discriminado. AttendanceCorrectionsService coordina corrección e historial bajo ClassSession→Student→Subscription→Attendance; no introduce repositories. AuditModule expone sólo consulta Admin con proyección de metadata por evento. DTOs estrictos y controllers delgados. [Detalles](admin-corrections.md).

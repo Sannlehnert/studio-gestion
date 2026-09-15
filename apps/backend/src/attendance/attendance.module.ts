@@ -1,3 +1,4 @@
+import { AttendanceCorrectionsService } from './attendance-corrections.service';
 import { AttendanceChallengeService } from './attendance-challenge.service';
 import { AttendanceRateGuard } from './attendance-rate.guard';
 import { Module } from '@nestjs/common';
@@ -22,6 +23,7 @@ import { StudentAttendanceController } from './student-attendance.controller';
     AttendanceChallengeService,
     AttendanceRateGuard,
     AttendanceService,
+    AttendanceCorrectionsService,
     AttendanceReconciliationScheduler,
   ],
   exports: [AttendanceService],

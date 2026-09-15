@@ -1,7 +1,9 @@
+import { CLOCK, Clock } from '../time/clock';
 import {
   BadRequestException,
   ConflictException,
   Injectable,
+  Inject,
   NotFoundException,
 } from '@nestjs/common';
 import { Prisma, SubscriptionStatus } from '@prisma/client';
@@ -40,7 +42,10 @@ type SubscriptionView = Prisma.SubscriptionGetPayload<{
 
 @Injectable()
 export class SubscriptionsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Inject(CLOCK) private readonly clock: Clock,
+  ) {}
 
   async create(dto: CreateSubscriptionDto, actorId: string) {
     const periodStart = new Date(dto.periodStart);
@@ -116,6 +121,7 @@ export class SubscriptionsService {
         });
         await tx.auditLog.create({
           data: {
+            actorType: 'ADMIN',
             actorId,
             action: 'SUBSCRIPTION_CREATED',
             entity: 'Subscription',
@@ -224,7 +230,7 @@ export class SubscriptionsService {
         throw new NotFoundException('Suscripción no encontrada');
       }
       if (current.status === SubscriptionStatus.CANCELLED) return current;
-      const cancelledAt = new Date();
+      const cancelledAt = this.clock.now();
       const updated = await tx.subscription.update({
         where: { id },
         data: { status: SubscriptionStatus.CANCELLED, cancelledAt },
@@ -232,6 +238,7 @@ export class SubscriptionsService {
       });
       await tx.auditLog.create({
         data: {
+          actorType: 'ADMIN',
           actorId,
           action: 'SUBSCRIPTION_CANCELLED',
           entity: 'Subscription',

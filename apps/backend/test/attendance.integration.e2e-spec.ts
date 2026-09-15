@@ -156,6 +156,7 @@ describe('Attendance persistence with PostgreSQL (integration)', () => {
     expect(first.attendance?.id).toBe(replay.attendance?.id);
     expect(first.attendance).toMatchObject({
       status: AttendanceStatus.PRESENT,
+      originalStatus: AttendanceStatus.PRESENT,
       source: AttendanceSource.STUDENT,
       subscriptionId: fixture.subscription.id,
     });
@@ -199,6 +200,7 @@ describe('Attendance persistence with PostgreSQL (integration)', () => {
     ).toMatchObject([
       {
         status: AttendanceStatus.ABSENT,
+        originalStatus: AttendanceStatus.ABSENT,
         source: AttendanceSource.SYSTEM,
         subscriptionId: fixture.subscription.id,
       },
@@ -380,6 +382,7 @@ describe('Attendance persistence with PostgreSQL (integration)', () => {
         subscriptionId: fixture.subscription.id,
         classSessionId: session.id,
         status: AttendanceStatus.PRESENT,
+        originalStatus: AttendanceStatus.PRESENT,
         source: AttendanceSource.STUDENT,
       },
     });
@@ -390,6 +393,7 @@ describe('Attendance persistence with PostgreSQL (integration)', () => {
           subscriptionId: fixture.subscription.id,
           classSessionId: session.id,
           status: AttendanceStatus.PRESENT,
+          originalStatus: AttendanceStatus.PRESENT,
           source: AttendanceSource.STUDENT,
         },
       }),
@@ -402,6 +406,7 @@ describe('Attendance persistence with PostgreSQL (integration)', () => {
           subscriptionId: other.subscription.id,
           classSessionId: otherSession.id,
           status: AttendanceStatus.PRESENT,
+          originalStatus: AttendanceStatus.PRESENT,
           source: AttendanceSource.STUDENT,
         },
       }),
@@ -413,6 +418,7 @@ describe('Attendance persistence with PostgreSQL (integration)', () => {
           subscriptionId: fixture.subscription.id,
           classSessionId: otherSession.id,
           status: AttendanceStatus.ABSENT,
+          originalStatus: AttendanceStatus.ABSENT,
           source: AttendanceSource.STUDENT,
         },
       }),
@@ -440,6 +446,7 @@ describe('Attendance persistence with PostgreSQL (integration)', () => {
           subscriptionId: fixture.subscription.id,
           classSessionId: session.id,
           status: AttendanceStatus.PRESENT,
+          originalStatus: AttendanceStatus.PRESENT,
           source: AttendanceSource.STUDENT,
         },
       });

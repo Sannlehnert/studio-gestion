@@ -28,7 +28,9 @@
     "prisma:migrate": "prisma migrate dev",
     "prisma:studio": "prisma studio",
     "typecheck": "tsc --project tsconfig.check.json",
-    "prisma:seed": "node --env-file=.env --require ts-node/register prisma/seed.ts"
+    "prisma:seed": "node --env-file=.env --require ts-node/register prisma/seed.ts",
+    "test:migration:recoveries": "node test/verify-recoveries-migration.mjs",
+    "test:migration:corrections": "node test/verify-admin-corrections-migration.mjs"
   },
   "dependencies": {
     "@nestjs/common": "^12.0.1",

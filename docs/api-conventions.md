@@ -136,3 +136,22 @@ POST /api/v1/admin/class-sessions/:id/qr-challenge recibe body vacío, requiere 
 No hay endpoint de estado ni imagen QR. El secreto se devuelve una única vez y todas las respuestas llevan Cache-Control: no-store. El cliente debe mostrar la última respuesta recibida y evitar peticiones de rotación superpuestas; si pierde la respuesta puede solicitar otra, respetando rate limiting. El QR contiene sólo el token; la ClassSession se obtiene del contexto de las clases propias, no de una URL que transporte el secreto.
 
 RATE_ATTENDANCE_LIMIT/WINDOW_MS aplica por Student autenticada (20/min), no por IP. RATE_QR_CHALLENGE_LIMIT/WINDOW_MS aplica por Admin y ClassSession (20/min). Ambos acumulan el límite general por IP. Un 429 incluye Retry-After. Reiniciar sesión no cambia la identidad del contador. Ver [attendance-qr.md](attendance-qr.md).
+
+## Contrato de Recoveries
+
+POST Admin `/attendances/:attendanceId/recovery` acepta sólo targetClassSessionId y responde 200 tanto al crear como al repetir el mismo destino. Otro destino exige cancelación previa y responde 409. POST `/recoveries/:id/cancel` acepta reason y conserva la primera cancelación. GET Admin/Student `/recoveries` y `/recoveries/:id` usan propiedad en la consulta, UUIDs y listas acotadas; Student ajena obtiene 404.
+
+`cancellation=all|not_cancelled|cancelled` es un filtro administrativo; Admin agrega studentId/originalAttendanceId. Las respuestas derivan state/unavailableReason. Expected/Attendance agregan origin y recoveryId nullable; enrollmentId también es nullable para participación adicional. Attendance devuelve consumesAllowance derivado. Las rutas completas y la semántica están en [Recoveries](recoveries.md).
+
+## Etapa 7: Admin Corrections y Audit
+
+Todas las rutas requieren sesión Admin. POST exige Origin/Referer permitido y JSON estricto.
+
+| Método | Ruta bajo /api/v1 | Body / respuesta |
+|---|---|---|
+| POST | /admin/class-sessions/:classSessionId/students/:studentId/attendance | {reason}; 201, vista Attendance. Existente: 409 |
+| POST | /admin/attendances/:attendanceId/corrections | {targetStatus,reason}; 200 {attendance,correction}; no-op correction=null |
+| GET | /admin/attendances/:attendanceId/corrections | page/limit; items y meta; sequence ASC |
+| GET | /admin/audit-logs | filtros actor/entidad/acción/fechas; items y meta; fecha DESC, id DESC |
+
+Motivo trim 3–500. No se aceptan campos de identidad, fuente, consumo o tiempo por body. Attendance incluye originalStatus; source incluye ADMIN y representa origen, no el autor de la última corrección. [Semántica](admin-corrections.md), [filtros y metadata](operational-audit.md).

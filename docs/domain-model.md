@@ -1,6 +1,6 @@
 # Modelo de dominio
 
-Fuente: apps/backend/prisma/schema.prisma y sus ocho migraciones. Tener una tabla de etapas futuras no significa tener su módulo de negocio.
+Fuente: apps/backend/prisma/schema.prisma y sus diez migraciones. Tener una tabla de etapas futuras no significa tener su módulo de negocio.
 
 ## Modelos actuales
 
@@ -16,17 +16,17 @@ Fuente: apps/backend/prisma/schema.prisma y sus ocho migraciones. Tener una tabl
 | Schedule      | Recurrencia semanal local, capacidad habitual e isActive; origina ClassSession.                            | IMPLEMENTED: CRUD sin borrado, estado, filtros y snapshot futuro.                                 |
 | ClassSession  | Clase concreta con fecha de recurrencia, instantes UTC, capacidad, cancelación y cierre de asistencia.     | IMPLEMENTED: generación, consulta, excepciones, cancelación y reconciliación idempotente.           |
 | Enrollment    | Vincula Student, Subscription y Schedule durante un intervalo local semiabierto.                           | IMPLEMENTED: alta, listados, finalización y cambio de horario histórico.                           |
-| Attendance    | Vincula Student, Subscription y ClassSession; estado, origen y recordedAt.                                | IMPLEMENTED: PRESENT de Student, ABSENT de sistema, consultas y consumo derivado.                  |
+| Attendance    | Vincula Student, Subscription y ClassSession; estado, origen y recordedAt.                                | IMPLEMENTED: PRESENT Student/Admin, ABSENT de sistema, correcciones, consultas y consumo derivado.                  |
 | AttendanceChallenge | Secreto efímero representado sólo por hash, ligado a ClassSession y Admin emisor. | IMPLEMENTED: emisión, rotación, validación, revocación por cancelación y limpieza acotada. |
-| Recovery      | Vincula Student, Subscription, ausencia original y sesión destino.                                        | PLANNED: autorización, uso, vencimiento y revocación.                                             |
+| Recovery      | Vincula Student, Subscription, ausencia original y sesión destino.                                        | IMPLEMENTED: autorización Admin, cancelación trazable, resultado y estado derivados.                                             |
 | Session       | userId + rol, tokenHash único, expiración, revocación y lastSeenAt.                                       | IMPLEMENTED: creación, validación y logout.                                                       |
-| AuditLog      | actorId opcional, acción, entidad, ID, metadata JSON y fecha.                                             | IMPLEMENTED: eventos Auth, Students y núcleo comercial. Consulta administrativa aún no expuesta.  |
+| AuditLog      | actorType explícito, actorId, acción, entidad, ID, metadata JSON y fecha.                                             | IMPLEMENTED: eventos de mutaciones y consulta Admin paginada con metadata controlada.  |
 
 ## Invariantes IMPLEMENTED
 
 - Admin.email, StudentAccess.tokenHash y Session.tokenHash son únicos en PostgreSQL.
 - Attendance tiene UNIQUE(studentId, classSessionId). Enrollment prohíbe solapamientos para una misma Student y Schedule.
-- Recovery.originalAbsenceId es único: hoy una ausencia puede tener como máximo un registro Recovery.
+- Recovery tiene índices únicos parciales por ausencia y Student/destino para autorizaciones no canceladas; permite conservar varias cancelaciones históricas.
 - Las relaciones ordinarias están protegidas por claves foráneas. Session.userId y AuditLog.actorId son identificadores polimórficos sin FK.
 - SessionGuard comprueba en cada request que exista la identidad del rol persistido. El request no elige identidad ni rol.
 - Una sesión válida requiere revokedAt nulo y expiresAt estrictamente posterior al reloj del backend. Se vuelve a comprobar ese predicado al actualizar lastSeenAt.
@@ -48,9 +48,9 @@ Fuente: apps/backend/prisma/schema.prisma y sus ocho migraciones. Tener una tabl
 - Enrollment usa `[validFrom, validUntil)` como fechas locales. La FK compuesta exige que Subscription pertenezca a Student y la exclusión GiST evita períodos superpuestos para Student/Schedule.
 - Crear o mover Enrollment valida Student activa, Subscription operativa y propia, Schedule activo, período contractual, al menos una recurrencia y cupo habitual/efectivo.
 - Cambiar de horario cierra el Enrollment anterior y crea otro en una transacción. Finalizar o repetir el mismo cambio no borra ni duplica historia.
-- Attendance sólo admite PRESENT/STUDENT y ABSENT/SYSTEM. La FK compuesta garantiza que la Subscription pertenece a la Student y UNIQUE(studentId, classSessionId) impide estados contradictorios.
+- Attendance original admite PRESENT/STUDENT, PRESENT/ADMIN y ABSENT/SYSTEM. El estado efectivo puede diferir tras una corrección; originalStatus/source/recordedAt son inmutables. La FK compuesta garantiza que la Subscription pertenece a la Student y UNIQUE(studentId, classSessionId) impide estados contradictorios.
 - ClassSession COMPLETED exige `attendanceClosedAt`; los demás estados exigen que sea nulo. Una clase con Attendance no se puede cancelar desde el servicio.
-- PRESENT y ABSENT consumen una clase. `usedClasses` se cuenta sobre Attendance y `remainingClasses` se deriva sin persistir contadores ni devolver negativos. Si used supera allowance se expone `OVERCONSUMED`.
+- PRESENT y ABSENT normales consumen una clase; con recoveryId no consumen. `usedClasses` se cuenta sobre Attendance con recoveryId nulo y `remainingClasses` se deriva sin persistir contadores ni devolver negativos. Si used supera allowance se expone `OVERCONSUMED`.
 - La ventana es `[startAt - openBefore, endAt + closeAfter)`. El reloj del backend decide. CANCELLED nunca admite Attendance.
 - El reconciliador crea las ausencias faltantes y cierra la ClassSession en una transacción. Student, Subscription y ClassSession se bloquean; la unicidad PostgreSQL es la defensa final entre workers.
 - Expected Students y reconciliación evalúan la actividad de Student en `ClassSession.startAt`. PRESENT agrega la exigencia de actividad actual para no autorizar una sesión revocada.
@@ -61,10 +61,9 @@ Auth usa hashes y registros Session/StudentAccess persistidos, no cookies como b
 
 Schedule es fuente de recurrencia y capacidad habitual para generaciones futuras. ClassSession es el snapshot y la capacidad efectiva de una fecha ya creada. Enrollment es la pertenencia temporal al Schedule respaldada por una Subscription. Las alumnas esperadas para una ClassSession se derivan de esos tres registros, de la vigencia del contrato y de StudentActivePeriod en `startAt`. Attendance conserva qué contrato consumió cada clase; no hay tabla de reservas ni contador mutable.
 
-## Invariantes PLANNED y riesgos antes de negocio
+## Recovery implementada
 
-- Implementar Recovery sin reescribir la ausencia original ni ocultar el consumo histórico.
-- Revisar qué hacer ante una recuperación revocada cuando ya existe UNIQUE(originalAbsenceId); no sobrescribir historia sin una regla.
+La autorización exige ausencia habitual, misma Student/Subscription, destino adicional dentro del período y cupo. Attendance.recoveryId vincula el resultado sin doble consumo. FKs compuestas, índices parciales y guards PostgreSQL protegen identidad e histórico. Ver [Recoveries](recoveries.md).
 
 ## Índices y migraciones
 
@@ -80,4 +79,12 @@ La migración 20260910120000_attendance_challenge es aditiva: conserva Attendanc
 
 Emisión y PRESENT bloquean la ClassSession. La emisión deja como máximo dos challenges no revocados; uno anterior conserva su expiry original. El tercero desplaza al más antiguo. El límite del conjunto lo garantiza el protocolo transaccional con bloqueo PostgreSQL, no el rate limit ni un CHECK basado en el reloj. Escrituras externas que omitan ese protocolo no están autorizadas.
 
-Cancelar revoca los challenges en la misma transacción. PRESENT siempre valida el estado y la ventana actuales, incluso si cambió el horario de la clase. Repetir PRESENT exige challenge vigente y no vuelve a consumir allowance. Ver [QR](attendance-qr.md).
+Cancelar revoca los challenges en la misma transacción. PRESENT Student siempre valida el estado y la ventana actuales, incluso si cambió el horario de la clase. Repetir PRESENT exige challenge vigente y no vuelve a consumir allowance. Ver [QR](attendance-qr.md).
+
+## Persistencia de Recoveries (Etapa 6)
+
+`20260912180000_recoveries` inspecciona el modelo provisional antes del DDL, preserva Attendance y agrega la relación opcional de resultado. Seis FKs RESTRICT, cancelación coherente por CHECK, unicidad parcial por ausencia/Student-destino y triggers de histórico. Estado operativo, resultado y consumo se derivan; no hay estado editable ni contador.
+
+## Etapa 7: correcciones y actores
+
+AttendanceCorrection pertenece a Attendance y Admin con FK RESTRICT, motivo trim 3–500, transición distinta y secuencia positiva única por Attendance. Su historial no admite UPDATE/DELETE. Attendance manual guarda createdByAdminId y creationReason; CHECK exige ambos sólo para source ADMIN. AuditLog agrega actorType obligatorio y CHECK de actor, más índices de filtros/orden. El backfill originalStatus=status conserva el estado previo. La guardia de actor rechaza histórico ambiguo antes de DDL. [Modelo y reglas completas](admin-corrections.md).

@@ -40,6 +40,7 @@ export class AdminAuthService {
       );
       await tx.auditLog.create({
         data: {
+          actorType: 'ADMIN',
           actorId: admin.id,
           action: 'ADMIN_LOGIN',
           entity: 'Session',
