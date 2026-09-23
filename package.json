@@ -8,6 +8,15 @@
     "apps/frontend"
   ],
   "scripts": {
+    "dev:frontend": "npm run dev --workspace=apps/frontend",
+    "build:frontend": "npm run build --workspace=apps/frontend",
+    "lint:frontend": "npm run lint --workspace=apps/frontend",
+    "typecheck:frontend": "npm run typecheck --workspace=apps/frontend",
+    "test:frontend": "npm run test --workspace=apps/frontend",
+    "test:e2e:frontend": "npm run test:e2e --workspace=apps/frontend",
+    "test:integration:frontend": "npm run test:e2e:real --workspace=apps/frontend",
+    "api:generate:frontend": "npm run api:generate --workspace=apps/frontend",
+    "api:check:frontend": "npm run api:check --workspace=apps/frontend",
     "dev:backend": "npm run start:dev --workspace=apps/backend",
     "build:backend": "npm run build --workspace=apps/backend",
     "lint:backend": "npm run lint --workspace=apps/backend",

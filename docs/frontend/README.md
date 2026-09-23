@@ -1,4 +1,15 @@
-> Actualización Etapa 7.1: este documento conserva el diseño e inspección de F0. Para disponibilidad actual de endpoints y brechas, prevalecen [backend-contract-map](backend-contract-map.md) y el [contrato de integración](../frontend-integration-contract.md). No se inició Frontend F1.
+# Frontend — Estado actual
+
+**FRONTEND FOUNDATION = COMPLETE.** Fase 1 implementada y validada. Fase 2 no iniciada.
+
+- [Arquitectura de Foundation](foundation-architecture.md)
+- [Design System implementado](design-system.md)
+- [Validación final F1](phase-1-validation.md)
+- [Instalación y ejecución](../../apps/frontend/README.md)
+
+El contenido siguiente conserva el estado histórico de F0 y sus propuestas; no reemplaza la evidencia ni el alcance actual de F1.
+
+> Actualización Etapa 7.1: este documento conserva el diseño e inspección de F0. Para disponibilidad actual de endpoints y brechas, prevalecen [backend-contract-map](backend-contract-map.md) y el [contrato de integración](../frontend-integration-contract.md). F1 está implementada; ver el cierre actual arriba.
 
 # Frontend Fase 0 — Product UX + Information Architecture
 

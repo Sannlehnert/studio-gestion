@@ -15,16 +15,16 @@ Sistema web para que una profesora gestione sus clases y alumnas, con énfasis e
 - Recoveries: COMPLETE
 - Admin Corrections + Operational Audit: COMPLETE
 - BACKEND FUNCTIONAL CORE: COMPLETE
-- Frontend: NOT STARTED
+- FRONTEND FOUNDATION: COMPLETE (Fase 1); pantallas de negocio pendientes
 
 El cierre funcional actual está en [validación de Etapa 7](docs/stage-7-validation.md); la [validación de Fase 0](docs/phase-0-validation.md) conserva su evidencia histórica. La existencia de modelos Prisma de negocio no implica que tengan endpoints implementados.
 
 ## Stack y estructura
 
-Node.js 24 LTS (24.15 o superior de la rama 24), npm 10 o superior, NestJS 12, TypeScript strict, PostgreSQL 16, Prisma 6, Vitest y OpenAPI. Frontend previsto: Vue 3 con Vite y TypeScript, todavía no creado.
+Node.js 24 LTS (24.15 o superior de la rama 24), npm 10 o superior, NestJS 12, TypeScript strict, PostgreSQL 16, Prisma 6, Vitest y OpenAPI. Frontend: Vue 3, Vite, TypeScript strict, Vue Router, TanStack Query y Tailwind CSS.
 
     apps/backend/       API NestJS, Prisma, tests y configuración
-    apps/frontend/      Sin implementación
+    apps/frontend/      Foundation Vue, sesión, layouts, transporte y tests
     docs/               Contexto, dominio, arquitectura, API y seguridad
     docker-compose.yml  PostgreSQL de desarrollo
     docker-compose.test.yml  PostgreSQL efímero de pruebas
@@ -90,7 +90,7 @@ Sesiones por cookies HttpOnly, sin localStorage. Las operaciones mutables exigen
 
 La API tiene CORS por allowlist, Helmet, rate limiting por categoría, JSON limitado, DTOs estrictos y errores sin internals. Los valores configurables están en .env.example y se explican en [seguridad](docs/security.md).
 
-La activación Student entrega al Admin un enlace /activate#token=.... El futuro frontend deberá limpiar el fragmento y enviar el token en JSON; no hay frontend implementado todavía.
+La activación Student entrega al Admin un enlace /activate#token=.... El frontend limpia el fragmento antes de iniciar Router y envía el token en JSON desde la vista mínima de activación.
 
 ## Tests
 
@@ -150,3 +150,7 @@ Desde la raíz: `npm --workspace apps/backend run test:migration:corrections` ve
 ## Integración frontend
 
 Ver [contrato Etapa 7.1](docs/frontend-integration-contract.md), [validación](docs/stage-7.1-validation.md) y [brechas de F0](docs/frontend/backend-contract-map.md). Frontend F1 no está iniciado.
+
+## Frontend Foundation
+
+Fase 1 completa: [validación](docs/frontend/phase-1-validation.md), [arquitectura](docs/frontend/foundation-architecture.md) y [guía de ejecución](apps/frontend/README.md). Iniciar Vite con npm run dev:frontend y el backend en otra terminal con npm run dev:backend, usando localhost consistentemente y la configuración descrita en la guía. Las pruebas integradas usan exclusivamente la base de pruebas. Fase 2 no iniciada.

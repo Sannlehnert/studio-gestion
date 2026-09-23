@@ -6,7 +6,7 @@ Studio Gestión es un sistema real para una profesora que alquila una sala y adm
 
 - IMPLEMENTED: foundation, Auth, Students, Plans, Subscriptions, Payments, Schedules, Enrollments, ClassSessions, Attendance, historial temporal de actividad, challenge QR, Recoveries y correcciones/auditoría administrativas. La evidencia está en las validaciones de [Fase 0](phase-0-validation.md), [Etapa 1](stage-1-validation.md), [Etapa 2](stage-2-validation.md), [Etapa 3](stage-3-validation.md), [Etapa 4](stage-4-validation.md), [Etapa 4.1](stage-4.1-validation.md) y [Etapa 5](stage-5-validation.md) y [Etapa 6](stage-6-validation.md).
 - Etapa 7: IMPLEMENTED. Ver [validación final](stage-7-validation.md).
-- NOT STARTED: frontend. StudentModule singular aporta la ruta de permisos de alumna; StudentsModule contiene su gestión administrativa.
+- Frontend Fase 1: IMPLEMENTED. Foundation, sesión, transporte, layouts y design system; pantallas de negocio pendientes. Ver [validación F1](frontend/phase-1-validation.md). StudentModule singular aporta la ruta de permisos de alumna; StudentsModule contiene su gestión administrativa.
 - Fuera del MVP: múltiples profesores/salas/sedes, reservas, WhatsApp, pagos online, notificaciones y SaaS.
 
 ## Usuarios
@@ -51,10 +51,10 @@ No avanzar de etapa automáticamente. Cualquier etapa necesita lint, typecheck, 
 
 ## Correcciones administrativas
 
-Attendance conserva originalStatus/source/recordedAt; status es su proyección efectiva corregible. Historial estructurado y auditoría comparten transacción. Recovery cancelada no bloquea corregir el origen; con resultado lo bloquea. Ver [correcciones](admin-corrections.md) y [auditoría](operational-audit.md). BACKEND FUNCTIONAL CORE = COMPLETE para el alcance funcional acordado hasta Etapa 7; esto no certifica preparación de producción. Frontend requiere un nuevo prompt.
+Attendance conserva originalStatus/source/recordedAt; status es su proyección efectiva corregible. Historial estructurado y auditoría comparten transacción. Recovery cancelada no bloquea corregir el origen; con resultado lo bloquea. Ver [correcciones](admin-corrections.md) y [auditoría](operational-audit.md). BACKEND FUNCTIONAL CORE = COMPLETE para el alcance funcional acordado hasta Etapa 7; esto no certifica preparación de producción. Frontend Foundation está implementada; cada fase posterior requiere su autorización.
 
 ## Integración frontend — Etapa 7.1
 
-Etapa 7.1 agrega seis lecturas para integración frontend, códigos de error estables y CORS para Idempotency-Key. CURRENT/UPCOMING/NONE describe selección contractual, separado del status persistido. Auth/me conserva identidad. No cambia schema ni reglas del dominio; Frontend F1 requiere el próximo prompt.
+Etapa 7.1 agrega seis lecturas para integración frontend, códigos de error estables y CORS para Idempotency-Key. CURRENT/UPCOMING/NONE describe selección contractual, separado del status persistido. Auth/me conserva identidad. No cambia schema ni reglas del dominio; Frontend F1 está implementada sin cambios adicionales al backend.
 
 Contrato completo y límites: [frontend-integration-contract.md](frontend-integration-contract.md). Evidencia: [stage-7.1-validation.md](stage-7.1-validation.md).
