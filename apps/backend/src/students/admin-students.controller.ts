@@ -1,3 +1,4 @@
+import { ApiErrorDto } from '../common/http/error-response.dto';
 import {
   Body,
   Controller,
@@ -60,7 +61,11 @@ export class StudentsAdminController {
   @ApiOperation({ summary: 'Obtener una alumna por ID' })
   @ApiParam({ name: 'id', format: 'uuid' })
   @ApiResponse({ status: 200, type: StudentResponseDto })
-  @ApiResponse({ status: 404, description: 'Alumna no encontrada' })
+  @ApiResponse({
+    type: ApiErrorDto,
+    status: 404,
+    description: 'Alumna no encontrada',
+  })
   getById(@Param('id', ParseUUIDPipe) id: string) {
     return this.students.getById(id);
   }
@@ -69,7 +74,11 @@ export class StudentsAdminController {
   @ApiOperation({ summary: 'Modificar el nombre de una alumna' })
   @ApiParam({ name: 'id', format: 'uuid' })
   @ApiResponse({ status: 200, type: StudentResponseDto })
-  @ApiResponse({ status: 404, description: 'Alumna no encontrada' })
+  @ApiResponse({
+    type: ApiErrorDto,
+    status: 404,
+    description: 'Alumna no encontrada',
+  })
   update(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateStudentDto,
@@ -85,7 +94,11 @@ export class StudentsAdminController {
   })
   @ApiParam({ name: 'id', format: 'uuid' })
   @ApiResponse({ status: 200, type: StudentResponseDto })
-  @ApiResponse({ status: 404, description: 'Alumna no encontrada' })
+  @ApiResponse({
+    type: ApiErrorDto,
+    status: 404,
+    description: 'Alumna no encontrada',
+  })
   deactivate(
     @Param('id', ParseUUIDPipe) id: string,
     @CurrentUser() actor: AuthenticatedUser,
@@ -101,7 +114,11 @@ export class StudentsAdminController {
   })
   @ApiParam({ name: 'id', format: 'uuid' })
   @ApiResponse({ status: 200, type: StudentResponseDto })
-  @ApiResponse({ status: 404, description: 'Alumna no encontrada' })
+  @ApiResponse({
+    type: ApiErrorDto,
+    status: 404,
+    description: 'Alumna no encontrada',
+  })
   reactivate(
     @Param('id', ParseUUIDPipe) id: string,
     @CurrentUser() actor: AuthenticatedUser,

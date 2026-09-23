@@ -1,3 +1,4 @@
+import { ApiErrorDto } from '../../common/http/error-response.dto';
 import {
   Body,
   Controller,
@@ -27,6 +28,7 @@ export class StudentAuthController {
   @ApiOperation({ summary: 'Consumir un acceso y crear sesión de alumna' })
   @ApiResponse({ status: 200, type: StudentActivationResponseDto })
   @ApiResponse({
+    type: ApiErrorDto,
     status: 401,
     description: 'Acceso inválido, vencido, revocado o consumido',
   })

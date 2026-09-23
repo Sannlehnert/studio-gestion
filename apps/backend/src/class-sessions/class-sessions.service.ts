@@ -1,3 +1,4 @@
+import { apiFailure, ErrorCode } from '../common/http/error-code';
 import {
   ClassParticipationService,
   ParticipationSession,
@@ -129,6 +130,15 @@ export class ClassSessionsService {
   }
 
   async list(query: ListClassSessionsQueryDto) {
+    const now = this.clock.now();
+    if (query.today && (query.dateFrom || query.dateTo))
+      throw new BadRequestException('today no admite dateFrom/dateTo');
+    if (query.today)
+      query = {
+        ...query,
+        dateFrom: this.businessTime.today(now),
+        dateTo: this.businessTime.today(now),
+      };
     this.assertListRange(query.dateFrom, query.dateTo);
     const where: Prisma.ClassSessionWhereInput = {
       ...(query.status === ClassSessionStatusFilter.ALL
@@ -169,6 +179,13 @@ export class ClassSessionsService {
     );
     return {
       items: result.items.map((item) => this.serialize(item)),
+      ...(query.today
+        ? {
+            readAt: now,
+            businessDate: this.businessTime.today(now),
+            timeZone: this.businessTime.timeZone,
+          }
+        : {}),
       meta: {
         page: query.page,
         limit: query.limit,
@@ -198,7 +215,10 @@ export class ClassSessionsService {
       const reservedCount = await this.capacityReservationCount(tx, current);
       if (dto.capacity < reservedCount) {
         throw new ConflictException(
-          'La capacidad es menor que las alumnas esperadas para la clase',
+          apiFailure(
+            ErrorCode.CAPACITY_CONFLICT,
+            'La capacidad es menor que las alumnas esperadas para la clase',
+          ),
         );
       }
       const updated = await tx.classSession.update({

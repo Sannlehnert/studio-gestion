@@ -1,3 +1,4 @@
+import { ApiErrorDto } from '../common/http/error-response.dto';
 import {
   Body,
   Controller,
@@ -83,7 +84,11 @@ export class AdminSubscriptionPaymentsController {
     description: 'UUID v4 estable para reintentos del mismo registro',
   })
   @ApiResponse({ status: 201, type: PaymentResponseDto })
-  @ApiResponse({ status: 409, description: 'Sobrepago o clave reutilizada' })
+  @ApiResponse({
+    type: ApiErrorDto,
+    status: 409,
+    description: 'Sobrepago o clave reutilizada',
+  })
   register(
     @Param('subscriptionId', ParseUUIDPipe) subscriptionId: string,
     @Body() dto: RegisterPaymentDto,

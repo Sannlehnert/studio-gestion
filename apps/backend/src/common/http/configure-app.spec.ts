@@ -90,10 +90,10 @@ describe('shared HTTP security stack', () => {
       .options('/api/v1/probe')
       .set('Origin', 'http://localhost:5173')
       .set('Access-Control-Request-Method', 'POST')
-      .set('Access-Control-Request-Headers', 'content-type')
+      .set('Access-Control-Request-Headers', 'content-type,idempotency-key')
       .expect(204);
     expect(response.headers['access-control-allow-headers']).toBe(
-      'Content-Type',
+      'Content-Type,Idempotency-Key',
     );
   });
   it('sets security headers on successful and rejected responses', async () => {
@@ -220,6 +220,7 @@ describe('shared HTTP security stack', () => {
       .expect(429);
     expect(Number(response.headers['retry-after'])).toBeGreaterThan(0);
     expect(response.body.statusCode).toBe(429);
+    expect(response.body.code).toBe('RATE_LIMITED');
     await request(app.getHttpServer()).get('/api/v1/probe').expect(200);
   });
 });

@@ -85,14 +85,24 @@ export class ListEnrollmentsQueryDto {
   @IsEnum(EnrollmentStatusFilter)
   status: EnrollmentStatusFilter = EnrollmentStatusFilter.ALL;
 
-  @ApiPropertyOptional({ default: 1, minimum: 1, maximum: 100000 })
+  @ApiPropertyOptional({
+    type: 'integer',
+    default: 1,
+    minimum: 1,
+    maximum: 100000,
+  })
   @Type(() => Number)
   @IsInt()
   @Min(1)
   @Max(100000)
   page = 1;
 
-  @ApiPropertyOptional({ default: 20, minimum: 1, maximum: 100 })
+  @ApiPropertyOptional({
+    type: 'integer',
+    default: 20,
+    minimum: 1,
+    maximum: 100,
+  })
   @Type(() => Number)
   @IsInt()
   @Min(1)
@@ -110,13 +120,13 @@ class EnrollmentStudentDto {
 class EnrollmentScheduleDto {
   @ApiProperty({ format: 'uuid' })
   id!: string;
-  @ApiProperty()
+  @ApiProperty({ type: 'integer' })
   dayOfWeek!: number;
   @ApiProperty({ example: '19:00' })
   startTime!: string;
   @ApiProperty({ example: '21:00' })
   endTime!: string;
-  @ApiProperty()
+  @ApiProperty({ type: 'integer' })
   defaultCapacity!: number;
 }
 
@@ -153,13 +163,13 @@ export class EnrollmentChangeResponseDto {
 }
 
 class PageMetaDto {
-  @ApiProperty()
+  @ApiProperty({ type: 'integer' })
   page!: number;
-  @ApiProperty()
+  @ApiProperty({ type: 'integer' })
   limit!: number;
-  @ApiProperty()
+  @ApiProperty({ type: 'integer' })
   total!: number;
-  @ApiProperty()
+  @ApiProperty({ type: 'integer' })
   totalPages!: number;
 }
 

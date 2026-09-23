@@ -1,6 +1,7 @@
 import { ParticipationOrigin } from '../class-participation.service';
 import { Transform, Type } from 'class-transformer';
 import {
+  IsBoolean,
   IsEnum,
   IsInt,
   IsISO8601,
@@ -40,6 +41,17 @@ export enum ClassSessionStatusFilter {
 }
 
 export class ListClassSessionsQueryDto {
+  @ApiPropertyOptional({
+    type: Boolean,
+    description:
+      'true: fecha actual del negocio según BusinessTime. No combinar con dateFrom/dateTo.',
+  })
+  @Transform(({ value }) =>
+    value === 'true' ? true : value === 'false' ? false : value,
+  )
+  @IsOptional()
+  @IsBoolean()
+  today?: boolean;
   @ApiPropertyOptional({ enum: ClassSessionStatusFilter, default: 'all' })
   @Transform(({ value }) =>
     typeof value === 'string' ? value.toLowerCase() : value,
@@ -65,14 +77,24 @@ export class ListClassSessionsQueryDto {
   @Matches(LOCAL_DATE_PATTERN)
   dateTo?: string;
 
-  @ApiPropertyOptional({ default: 1, minimum: 1, maximum: 100000 })
+  @ApiPropertyOptional({
+    type: 'integer',
+    default: 1,
+    minimum: 1,
+    maximum: 100000,
+  })
   @Type(() => Number)
   @IsInt()
   @Min(1)
   @Max(100000)
   page = 1;
 
-  @ApiPropertyOptional({ default: 20, minimum: 1, maximum: 100 })
+  @ApiPropertyOptional({
+    type: 'integer',
+    default: 20,
+    minimum: 1,
+    maximum: 100,
+  })
   @Type(() => Number)
   @IsInt()
   @Min(1)
@@ -81,7 +103,7 @@ export class ListClassSessionsQueryDto {
 }
 
 export class UpdateClassSessionCapacityDto {
-  @ApiProperty({ minimum: 1, maximum: 1000 })
+  @ApiProperty({ type: 'integer', minimum: 1, maximum: 1000 })
   @IsInt()
   @Min(1)
   @Max(1000)
@@ -114,13 +136,13 @@ export class CancelClassSessionDto {
 class ClassSessionScheduleDto {
   @ApiProperty({ format: 'uuid' })
   id!: string;
-  @ApiProperty({ minimum: 1, maximum: 7 })
+  @ApiProperty({ type: 'integer', minimum: 1, maximum: 7 })
   dayOfWeek!: number;
   @ApiProperty({ example: '19:00' })
   startTime!: string;
   @ApiProperty({ example: '21:00' })
   endTime!: string;
-  @ApiProperty()
+  @ApiProperty({ type: 'integer' })
   defaultCapacity!: number;
 }
 
@@ -138,15 +160,15 @@ export class ClassSessionResponseDto {
   startAt!: Date;
   @ApiProperty({ format: 'date-time' })
   endAt!: Date;
-  @ApiProperty()
+  @ApiProperty({ type: 'integer' })
   capacity!: number;
   @ApiProperty({ enum: ClassSessionStatus })
   status!: ClassSessionStatus;
-  @ApiProperty({ format: 'date-time', nullable: true })
+  @ApiProperty({ type: String, format: 'date-time', nullable: true })
   cancelledAt!: Date | null;
-  @ApiProperty({ nullable: true })
+  @ApiProperty({ type: String, nullable: true })
   cancellationReason!: string | null;
-  @ApiProperty({ format: 'date-time', nullable: true })
+  @ApiProperty({ type: String, format: 'date-time', nullable: true })
   attendanceClosedAt!: Date | null;
   @ApiProperty({ type: ClassSessionScheduleDto })
   schedule!: ClassSessionScheduleDto;
@@ -157,17 +179,34 @@ export class ClassSessionResponseDto {
 }
 
 class PageMetaDto {
-  @ApiProperty()
+  @ApiProperty({ type: 'integer' })
   page!: number;
-  @ApiProperty()
+  @ApiProperty({ type: 'integer' })
   limit!: number;
-  @ApiProperty()
+  @ApiProperty({ type: 'integer' })
   total!: number;
-  @ApiProperty()
+  @ApiProperty({ type: 'integer' })
   totalPages!: number;
 }
 
 export class ClassSessionListResponseDto {
+  @ApiPropertyOptional({
+    type: String,
+    format: 'date-time',
+    description: 'Sólo para today=true',
+  })
+  readAt?: Date;
+  @ApiPropertyOptional({
+    type: String,
+    format: 'date',
+    description: 'Sólo para today=true',
+  })
+  businessDate?: string;
+  @ApiPropertyOptional({
+    type: String,
+    description: 'Zona IANA; sólo para today=true',
+  })
+  timeZone?: string;
   @ApiProperty({ type: [ClassSessionResponseDto] })
   items!: ClassSessionResponseDto[];
   @ApiProperty({ type: PageMetaDto })
@@ -175,11 +214,11 @@ export class ClassSessionListResponseDto {
 }
 
 export class ClassSessionGenerationResponseDto {
-  @ApiProperty()
+  @ApiProperty({ type: 'integer' })
   candidateCount!: number;
-  @ApiProperty()
+  @ApiProperty({ type: 'integer' })
   createdCount!: number;
-  @ApiProperty()
+  @ApiProperty({ type: 'integer' })
   existingCount!: number;
   @ApiProperty({ example: 'America/Argentina/Buenos_Aires' })
   timeZone!: string;

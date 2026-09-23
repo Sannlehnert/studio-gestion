@@ -1,3 +1,4 @@
+import { apiFailure, ErrorCode } from '../common/http/error-code';
 import {
   ConflictException,
   Inject,
@@ -88,7 +89,10 @@ export class RecoveriesService {
           original.classSession.status === 'CANCELLED'
         ) {
           throw new ConflictException(
-            'Se requiere una ausencia habitual de otra clase',
+            apiFailure(
+              ErrorCode.RECOVERY_INVALID,
+              'Se requiere una ausencia habitual de otra clase',
+            ),
           );
         }
         await this.lockStudentAndSubscription(
@@ -102,7 +106,10 @@ export class RecoveriesService {
         });
         if (!recoverableAbsence(currentOriginal, targetClassSessionId))
           throw new ConflictException(
-            'La asistencia original ya no es una ausencia recuperable',
+            apiFailure(
+              ErrorCode.RECOVERY_INVALID,
+              'La asistencia original ya no es una ausencia recuperable',
+            ),
           );
         const prior = await tx.recovery.findFirst({
           where: { originalAbsenceId: original.id, cancelledAt: null },
@@ -111,7 +118,10 @@ export class RecoveriesService {
         if (prior) {
           if (prior.recoverySession.id !== targetClassSessionId)
             throw new ConflictException(
-              'La ausencia ya tiene otra recuperación; cancelala antes de cambiar el destino',
+              apiFailure(
+                ErrorCode.RECOVERY_ALREADY_AUTHORIZED,
+                'La ausencia ya tiene otra recuperación; cancelala antes de cambiar el destino',
+              ),
             );
           return this.view(tx, prior);
         }
@@ -130,20 +140,31 @@ export class RecoveriesService {
           session.startAt <= original.classSession.startAt
         ) {
           throw new ConflictException(
-            'La recuperación requiere una clase posterior y todavía no iniciada',
+            apiFailure(
+              ErrorCode.RECOVERY_INVALID,
+              'La recuperación requiere una clase posterior y todavía no iniciada',
+            ),
           );
         }
         if (
           !student.isActive ||
           !(await this.history.wasActiveAt(tx, student.id, session.startAt))
         )
-          throw new ConflictException('Alumna no disponible para recuperar');
+          throw new ConflictException(
+            apiFailure(
+              ErrorCode.RECOVERY_UNAVAILABLE,
+              'Alumna no disponible para recuperar',
+            ),
+          );
         if (
           subscription.status !== 'ACTIVE' ||
           !subscriptionCoversRecovery(subscription, session.startAt)
         )
           throw new ConflictException(
-            'El destino debe pertenecer al mismo período contractual vigente',
+            apiFailure(
+              ErrorCode.RECOVERY_UNAVAILABLE,
+              'El destino debe pertenecer al mismo período contractual vigente',
+            ),
           );
         if (
           (await this.participation.normal(tx, session)).some(
@@ -151,7 +172,10 @@ export class RecoveriesService {
           )
         )
           throw new ConflictException(
-            'La clase destino ya es una clase habitual de la alumna',
+            apiFailure(
+              ErrorCode.REGULAR_ENROLLMENT_COVERS_TARGET,
+              'La clase destino ya es una clase habitual de la alumna',
+            ),
           );
         if (
           await tx.attendance.findUnique({
@@ -164,7 +188,10 @@ export class RecoveriesService {
           })
         )
           throw new ConflictException(
-            'El destino ya tiene asistencia registrada',
+            apiFailure(
+              ErrorCode.RECOVERY_INVALID,
+              'El destino ya tiene asistencia registrada',
+            ),
           );
         if (
           await tx.recovery.findFirst({
@@ -176,15 +203,28 @@ export class RecoveriesService {
           })
         )
           throw new ConflictException(
-            'La alumna ya tiene una recuperación hacia esa clase',
+            apiFailure(
+              ErrorCode.RECOVERY_ALREADY_AUTHORIZED,
+              'La alumna ya tiene una recuperación hacia esa clase',
+            ),
           );
         const occupied = await this.participation.reservations(tx, session);
         occupied.add(student.id);
         if (occupied.size > session.capacity)
-          throw new ConflictException('La clase destino no tiene cupo');
+          throw new ConflictException(
+            apiFailure(
+              ErrorCode.CLASS_SESSION_FULL,
+              'La clase destino no tiene cupo',
+            ),
+          );
         const authorizedAt = this.clock.now();
         if (authorizedAt >= session.startAt)
-          throw new ConflictException('La clase destino ya comenzó');
+          throw new ConflictException(
+            apiFailure(
+              ErrorCode.RECOVERY_INVALID,
+              'La clase destino ya comenzó',
+            ),
+          );
         const record = await tx.recovery.create({
           data: {
             originalAbsenceId: original.id,
@@ -219,7 +259,10 @@ export class RecoveriesService {
         error.code === 'P2002'
       )
         throw new ConflictException(
-          'La ausencia o el destino ya tienen una recuperación',
+          apiFailure(
+            ErrorCode.RECOVERY_ALREADY_AUTHORIZED,
+            'La ausencia o el destino ya tienen una recuperación',
+          ),
         );
       throw error;
     }
@@ -256,7 +299,10 @@ export class RecoveriesService {
       if (record.cancelledAt) return this.view(tx, record);
       if (record.attendance)
         throw new ConflictException(
-          'Una recuperación con asistencia no puede cancelarse',
+          apiFailure(
+            ErrorCode.RECOVERY_INVALID,
+            'Una recuperación con asistencia no puede cancelarse',
+          ),
         );
       const unavailable =
         record.recoverySession.status === 'CANCELLED' ||
@@ -266,7 +312,9 @@ export class RecoveriesService {
         );
       const cancelledAt = this.clock.now();
       if (!unavailable && cancelledAt >= record.recoverySession.startAt)
-        throw new ConflictException('La recuperación ya comenzó');
+        throw new ConflictException(
+          apiFailure(ErrorCode.RECOVERY_INVALID, 'La recuperación ya comenzó'),
+        );
       const updated = await tx.recovery.update({
         where: { id },
         data: {

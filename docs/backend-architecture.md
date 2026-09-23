@@ -87,3 +87,9 @@ Orden de locks de las operaciones que compiten: Schedule(s) ordenados → ClassS
 ## Etapa 7
 
 AttendanceService comparte el registro entre Student con QR y Admin manual mediante un actor interno discriminado. AttendanceCorrectionsService coordina corrección e historial bajo ClassSession→Student→Subscription→Attendance; no introduce repositories. AuditModule expone sólo consulta Admin con proyección de metadata por evento. DTOs estrictos y controllers delgados. [Detalles](admin-corrections.md).
+
+## Integración frontend — Etapa 7.1
+
+IntegrationReadsModule agrega controllers delgados y un servicio de proyecciones explícitas. Lecturas compuestas usan RepeatableRead y CLOCK/BusinessTime. ClassParticipationService.forSessions resuelve participación en lote y comparte cálculo de reservas con mutaciones. No se agregan repositorios, cache distribuido, esquema persistido ni lógica de dominio al frontend.
+
+Contrato completo y límites: [frontend-integration-contract.md](frontend-integration-contract.md). Evidencia: [stage-7.1-validation.md](stage-7.1-validation.md).

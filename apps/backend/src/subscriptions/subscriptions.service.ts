@@ -1,3 +1,4 @@
+import { apiFailure, ErrorCode } from '../common/http/error-code';
 import { CLOCK, Clock } from '../time/clock';
 import {
   BadRequestException,
@@ -66,7 +67,10 @@ export class SubscriptionsService {
         if (!student) throw new NotFoundException('Alumna no encontrada');
         if (!student.isActive) {
           throw new ConflictException(
-            'No se puede crear una suscripción para una alumna inactiva',
+            apiFailure(
+              ErrorCode.STUDENT_INACTIVE,
+              'No se puede crear una suscripción para una alumna inactiva',
+            ),
           );
         }
 
@@ -84,7 +88,12 @@ export class SubscriptionsService {
         });
         if (!plan) throw new NotFoundException('Plan no encontrado');
         if (!plan.isActive) {
-          throw new ConflictException('No se puede contratar un plan inactivo');
+          throw new ConflictException(
+            apiFailure(
+              ErrorCode.PLAN_INACTIVE,
+              'No se puede contratar un plan inactivo',
+            ),
+          );
         }
 
         const overlap = await tx.subscription.findFirst({
@@ -98,7 +107,10 @@ export class SubscriptionsService {
         });
         if (overlap) {
           throw new ConflictException(
-            'La alumna ya tiene una suscripción que se superpone con el período',
+            apiFailure(
+              ErrorCode.SUBSCRIPTION_OVERLAP,
+              'La alumna ya tiene una suscripción que se superpone con el período',
+            ),
           );
         }
 
@@ -146,7 +158,10 @@ export class SubscriptionsService {
     } catch (error) {
       if (this.isOverlapConstraint(error)) {
         throw new ConflictException(
-          'La alumna ya tiene una suscripción que se superpone con el período',
+          apiFailure(
+            ErrorCode.SUBSCRIPTION_OVERLAP,
+            'La alumna ya tiene una suscripción que se superpone con el período',
+          ),
         );
       }
       throw error;

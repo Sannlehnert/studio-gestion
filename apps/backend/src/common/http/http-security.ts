@@ -12,6 +12,7 @@ import {
   RatePolicy,
 } from '../../config/env.validation';
 import { errorResponse } from '../filters/http-exception.filter';
+import { apiFailure, ErrorCode } from './error-code';
 
 export function securityHeaders(settings: AppSettings): RequestHandler {
   const production = settings.environment === Environment.Production;
@@ -65,7 +66,12 @@ export function csrfProtection(settings: AppSettings): RequestHandler {
     }
     if (!source || !allowed.has(source))
       return next(
-        new ForbiddenException('Origen de la operación no permitido'),
+        new ForbiddenException(
+          apiFailure(
+            ErrorCode.CSRF_REJECTED,
+            'Origen de la operación no permitido',
+          ),
+        ),
       );
     return next();
   };

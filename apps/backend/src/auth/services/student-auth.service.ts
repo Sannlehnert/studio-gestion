@@ -1,3 +1,4 @@
+import { apiFailure, ErrorCode } from '../../common/http/error-code';
 import {
   ConflictException,
   Injectable,
@@ -75,11 +76,15 @@ export class StudentAuthService {
         access.activatedAt ||
         access.expiresAt <= now
       ) {
-        throw new UnauthorizedException('Acceso inválido');
+        throw new UnauthorizedException(
+          apiFailure(ErrorCode.STUDENT_ACCESS_INVALID, 'Acceso inválido'),
+        );
       }
       const student = await this.lockStudent(tx, access.studentId);
       if (!student?.isActive)
-        throw new UnauthorizedException('Acceso inválido');
+        throw new UnauthorizedException(
+          apiFailure(ErrorCode.STUDENT_ACCESS_INVALID, 'Acceso inválido'),
+        );
       // PostgreSQL rechecks this predicate after waiting for a concurrent row update.
       const claimed = await tx.studentAccess.updateMany({
         where: {
@@ -93,7 +98,9 @@ export class StudentAuthService {
       });
       // Recheck the clock after any database wait; throwing rolls back the claim.
       if (claimed.count !== 1 || access.expiresAt <= new Date())
-        throw new UnauthorizedException('Acceso inválido');
+        throw new UnauthorizedException(
+          apiFailure(ErrorCode.STUDENT_ACCESS_INVALID, 'Acceso inválido'),
+        );
       const { token, session } = await this.sessionService.createSession(
         access.studentId,
         SessionRole.STUDENT,

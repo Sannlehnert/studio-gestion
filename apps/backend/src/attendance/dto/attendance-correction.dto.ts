@@ -22,7 +22,7 @@ export class CorrectAttendanceDto extends ManualAttendanceDto {
 export class AttendanceCorrectionDto {
   @ApiProperty({ format: 'uuid' }) id!: string;
   @ApiProperty({ format: 'uuid' }) attendanceId!: string;
-  @ApiProperty() sequence!: number;
+  @ApiProperty({ type: 'integer' }) sequence!: number;
   @ApiProperty({ enum: AttendanceStatus }) previousStatus!: AttendanceStatus;
   @ApiProperty({ enum: AttendanceStatus }) targetStatus!: AttendanceStatus;
   @ApiProperty() reason!: string;

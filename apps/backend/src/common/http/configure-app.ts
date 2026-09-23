@@ -41,7 +41,7 @@ export async function configureApp(app: NestExpressApplication): Promise<void> {
     },
     credentials: true,
     methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type'],
+    allowedHeaders: ['Content-Type', 'Idempotency-Key'],
     exposedHeaders: ['Retry-After', 'RateLimit', 'RateLimit-Policy'],
     maxAge: 600,
   });

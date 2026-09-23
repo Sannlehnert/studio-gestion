@@ -1,3 +1,4 @@
+import { ApiErrorDto } from '../../common/http/error-response.dto';
 import {
   Body,
   Controller,
@@ -36,7 +37,11 @@ export class AuthController {
   @ApiCookieAuth('session')
   @ApiOperation({ summary: 'Obtener identidad desde la sesión' })
   @ApiResponse({ status: 200, type: MeResponseDto })
-  @ApiResponse({ status: 401, description: 'No autenticado' })
+  @ApiResponse({
+    type: ApiErrorDto,
+    status: 401,
+    description: 'No autenticado',
+  })
   me(@CurrentUser() user: AuthenticatedUser) {
     return { user };
   }

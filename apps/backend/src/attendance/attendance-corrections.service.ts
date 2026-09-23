@@ -1,3 +1,4 @@
+import { apiFailure, ErrorCode } from '../common/http/error-code';
 import {
   BadRequestException,
   ConflictException,
@@ -79,7 +80,10 @@ export class AttendanceCorrectionsService {
       });
       if (session.status === 'CANCELLED')
         throw new ConflictException(
-          'Anomalía de integridad: asistencia en clase cancelada; requiere revisión administrativa',
+          apiFailure(
+            ErrorCode.ATTENDANCE_CORRECTION_BLOCKED,
+            'Anomalía de integridad: asistencia en clase cancelada; requiere revisión administrativa',
+          ),
         );
       if (current.status === targetStatus)
         return {
@@ -96,11 +100,17 @@ export class AttendanceCorrectionsService {
         });
         if (recovery?.attendance)
           throw new ConflictException(
-            'La ausencia tiene una recuperación con resultado; no puede corregirse',
+            apiFailure(
+              ErrorCode.ATTENDANCE_CORRECTION_BLOCKED,
+              'La ausencia tiene una recuperación con resultado; no puede corregirse',
+            ),
           );
         if (recovery)
           throw new ConflictException(
-            'Cancelá primero la recuperación pendiente de esta ausencia',
+            apiFailure(
+              ErrorCode.ATTENDANCE_CORRECTION_BLOCKED,
+              'Cancelá primero la recuperación pendiente de esta ausencia',
+            ),
           );
       }
       const last = await tx.attendanceCorrection.findFirst({

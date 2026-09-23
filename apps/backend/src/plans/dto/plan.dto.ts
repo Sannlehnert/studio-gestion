@@ -32,7 +32,7 @@ export class CreatePlanDto {
   @MaxLength(500)
   description?: string;
 
-  @ApiProperty({ example: 8, minimum: 1, maximum: 1000 })
+  @ApiProperty({ type: 'integer', example: 8, minimum: 1, maximum: 1000 })
   @IsInt()
   @Min(1)
   @Max(1000)
@@ -62,7 +62,7 @@ export class UpdatePlanDto {
   @MaxLength(120)
   name?: string;
 
-  @ApiPropertyOptional({ nullable: true, maxLength: 500 })
+  @ApiPropertyOptional({ type: String, nullable: true, maxLength: 500 })
   @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
   @ValidateIf((_object, value) => value !== undefined && value !== null)
   @IsString()
@@ -70,7 +70,7 @@ export class UpdatePlanDto {
   @MaxLength(500)
   description?: string | null;
 
-  @ApiPropertyOptional({ minimum: 1, maximum: 1000 })
+  @ApiPropertyOptional({ type: 'integer', minimum: 1, maximum: 1000 })
   @ValidateIf((_object, value) => value !== undefined)
   @IsInt()
   @Min(1)
@@ -113,14 +113,24 @@ export class ListPlansQueryDto {
   @MaxLength(120)
   search?: string;
 
-  @ApiPropertyOptional({ default: 1, minimum: 1, maximum: 100000 })
+  @ApiPropertyOptional({
+    type: 'integer',
+    default: 1,
+    minimum: 1,
+    maximum: 100000,
+  })
   @Type(() => Number)
   @IsInt()
   @Min(1)
   @Max(100000)
   page = 1;
 
-  @ApiPropertyOptional({ default: 20, minimum: 1, maximum: 100 })
+  @ApiPropertyOptional({
+    type: 'integer',
+    default: 20,
+    minimum: 1,
+    maximum: 100,
+  })
   @Type(() => Number)
   @IsInt()
   @Min(1)
@@ -135,10 +145,10 @@ export class PlanResponseDto {
   @ApiProperty()
   name!: string;
 
-  @ApiProperty({ nullable: true })
+  @ApiProperty({ type: String, nullable: true })
   description!: string | null;
 
-  @ApiProperty()
+  @ApiProperty({ type: 'integer' })
   classCount!: number;
 
   @ApiProperty({ example: '40000.00', type: String })
@@ -158,13 +168,13 @@ export class PlanResponseDto {
 }
 
 class PageMetaDto {
-  @ApiProperty()
+  @ApiProperty({ type: 'integer' })
   page!: number;
-  @ApiProperty()
+  @ApiProperty({ type: 'integer' })
   limit!: number;
-  @ApiProperty()
+  @ApiProperty({ type: 'integer' })
   total!: number;
-  @ApiProperty()
+  @ApiProperty({ type: 'integer' })
   totalPages!: number;
 }
 

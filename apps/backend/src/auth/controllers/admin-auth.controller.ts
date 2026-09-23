@@ -1,3 +1,4 @@
+import { ApiErrorDto } from '../../common/http/error-response.dto';
 import {
   Body,
   Controller,
@@ -26,7 +27,11 @@ export class AdminAuthController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Login de administrador' })
   @ApiResponse({ status: 200, type: AdminLoginResponseDto })
-  @ApiResponse({ status: 401, description: 'Credenciales inválidas' })
+  @ApiResponse({
+    type: ApiErrorDto,
+    status: 401,
+    description: 'Credenciales inválidas',
+  })
   async login(
     @Body() dto: AdminLoginDto,
     @Req() req: Request,

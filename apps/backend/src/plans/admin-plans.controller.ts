@@ -1,3 +1,4 @@
+import { ApiErrorDto } from '../common/http/error-response.dto';
 import {
   Body,
   Controller,
@@ -56,7 +57,11 @@ export class AdminPlansController {
   @ApiOperation({ summary: 'Consultar el detalle de un plan' })
   @ApiParam({ name: 'id', format: 'uuid' })
   @ApiResponse({ status: 200, type: PlanResponseDto })
-  @ApiResponse({ status: 404, description: 'Plan no encontrado' })
+  @ApiResponse({
+    type: ApiErrorDto,
+    status: 404,
+    description: 'Plan no encontrado',
+  })
   getById(@Param('id', ParseUUIDPipe) id: string) {
     return this.plans.getById(id);
   }

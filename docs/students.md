@@ -65,3 +65,9 @@ Creación registra el nombre; actualización guarda solo nombre anterior y poste
 ## Migración del historial
 
 `20260904233000_historical_student_eligibility` reconstruye una sola vez los períodos previos con `Student.createdAt` y los eventos `STUDENT_DEACTIVATED`/`STUDENT_REACTIVATED`. El runtime no consulta `AuditLog` para decidir elegibilidad. Si el orden de eventos es inválido, hay timestamps simultáneos ambiguos o el estado derivado no coincide con `Student.isActive`, la migración aborta antes de crear la tabla. Una alumna inactiva sin una desactivación trazable no se aproxima ni se marca desde una fecha inventada.
+
+## Integración frontend — Etapa 7.1
+
+Student descubre contrato y consumo mediante GET /student/home-summary incluso sin próximas clases. Admin dispone de subscription-summary, class-sessions/upcoming y attendance-history bajo /admin/students/:studentId. Las lecturas no modifican identidad, actividad histórica ni contratos.
+
+Contrato completo y límites: [frontend-integration-contract.md](frontend-integration-contract.md). Evidencia: [stage-7.1-validation.md](stage-7.1-validation.md).

@@ -30,3 +30,7 @@ Auth, Students, núcleo comercial, scheduling, Attendance, historial temporal, Q
 - test/verify-admin-corrections-migration.mjs: fresh, upgrade 6→7 y guardias históricas.
 
 [Correcciones](../../docs/admin-corrections.md), [auditoría](../../docs/operational-audit.md), [resultados finales](../../docs/stage-7-validation.md).
+
+## Integración frontend — Etapa 7.1
+
+[Contrato público](../../docs/frontend-integration-contract.md) y [gates reales](../../docs/stage-7.1-validation.md). No hay migración 7 → 7.1 ni cambio de schema.

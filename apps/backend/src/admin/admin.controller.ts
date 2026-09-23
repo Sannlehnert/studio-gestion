@@ -1,3 +1,4 @@
+import { ApiErrorDto } from '../common/http/error-response.dto';
 import { Controller, Get, UseGuards } from '@nestjs/common';
 import {
   ApiTags,
@@ -22,8 +23,12 @@ export class AdminController {
     description: 'Acceso permitido',
     type: RoleCheckResponseDto,
   })
-  @ApiResponse({ status: 401, description: 'No autenticado' })
-  @ApiResponse({ status: 403, description: 'No autorizado' })
+  @ApiResponse({
+    type: ApiErrorDto,
+    status: 401,
+    description: 'No autenticado',
+  })
+  @ApiResponse({ type: ApiErrorDto, status: 403, description: 'No autorizado' })
   check(@CurrentUser() user: AuthenticatedUser) {
     return {
       message: 'Acceso de administrador permitido',

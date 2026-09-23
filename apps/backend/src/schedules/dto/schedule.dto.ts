@@ -15,6 +15,7 @@ const LOCAL_TIME_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/;
 
 export class CreateScheduleDto {
   @ApiProperty({
+    type: 'integer',
     minimum: 1,
     maximum: 7,
     description: 'Día ISO: lunes=1, domingo=7',
@@ -34,7 +35,7 @@ export class CreateScheduleDto {
   @Matches(LOCAL_TIME_PATTERN)
   endTime!: string;
 
-  @ApiProperty({ minimum: 1, maximum: 1000, example: 20 })
+  @ApiProperty({ type: 'integer', minimum: 1, maximum: 1000, example: 20 })
   @IsInt()
   @Min(1)
   @Max(1000)
@@ -42,7 +43,7 @@ export class CreateScheduleDto {
 }
 
 export class UpdateScheduleDto {
-  @ApiPropertyOptional({ minimum: 1, maximum: 7 })
+  @ApiPropertyOptional({ type: 'integer', minimum: 1, maximum: 7 })
   @ValidateIf((_object, value) => value !== undefined)
   @IsInt()
   @Min(1)
@@ -61,7 +62,7 @@ export class UpdateScheduleDto {
   @Matches(LOCAL_TIME_PATTERN)
   endTime?: string;
 
-  @ApiPropertyOptional({ minimum: 1, maximum: 1000 })
+  @ApiPropertyOptional({ type: 'integer', minimum: 1, maximum: 1000 })
   @ValidateIf((_object, value) => value !== undefined)
   @IsInt()
   @Min(1)
@@ -87,7 +88,7 @@ export class ListSchedulesQueryDto {
   @IsEnum(ScheduleStatusFilter)
   status: ScheduleStatusFilter = ScheduleStatusFilter.ACTIVE;
 
-  @ApiPropertyOptional({ minimum: 1, maximum: 7 })
+  @ApiPropertyOptional({ type: 'integer', minimum: 1, maximum: 7 })
   @Type(() => Number)
   @IsOptional()
   @IsInt()
@@ -95,14 +96,24 @@ export class ListSchedulesQueryDto {
   @Max(7)
   dayOfWeek?: number;
 
-  @ApiPropertyOptional({ default: 1, minimum: 1, maximum: 100000 })
+  @ApiPropertyOptional({
+    type: 'integer',
+    default: 1,
+    minimum: 1,
+    maximum: 100000,
+  })
   @Type(() => Number)
   @IsInt()
   @Min(1)
   @Max(100000)
   page = 1;
 
-  @ApiPropertyOptional({ default: 20, minimum: 1, maximum: 100 })
+  @ApiPropertyOptional({
+    type: 'integer',
+    default: 20,
+    minimum: 1,
+    maximum: 100,
+  })
   @Type(() => Number)
   @IsInt()
   @Min(1)
@@ -113,13 +124,13 @@ export class ListSchedulesQueryDto {
 export class ScheduleResponseDto {
   @ApiProperty({ format: 'uuid' })
   id!: string;
-  @ApiProperty({ minimum: 1, maximum: 7 })
+  @ApiProperty({ type: 'integer', minimum: 1, maximum: 7 })
   dayOfWeek!: number;
   @ApiProperty({ example: '19:00' })
   startTime!: string;
   @ApiProperty({ example: '21:00' })
   endTime!: string;
-  @ApiProperty()
+  @ApiProperty({ type: 'integer' })
   defaultCapacity!: number;
   @ApiProperty()
   isActive!: boolean;
@@ -130,13 +141,13 @@ export class ScheduleResponseDto {
 }
 
 class PageMetaDto {
-  @ApiProperty()
+  @ApiProperty({ type: 'integer' })
   page!: number;
-  @ApiProperty()
+  @ApiProperty({ type: 'integer' })
   limit!: number;
-  @ApiProperty()
+  @ApiProperty({ type: 'integer' })
   total!: number;
-  @ApiProperty()
+  @ApiProperty({ type: 'integer' })
   totalPages!: number;
 }
 

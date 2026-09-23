@@ -1,3 +1,4 @@
+import { apiFailure, ErrorCode } from '../common/http/error-code';
 import { correctionReason } from './attendance-correction-domain';
 import { ParticipationOrigin } from '../class-sessions/class-participation.service';
 import { consumesAllowance } from '../recoveries/recovery-domain';
@@ -125,31 +126,50 @@ export class AttendanceService {
       });
       if (actor.type === 'ADMIN' && existing) {
         throw new ConflictException(
-          'La asistencia ya existe; utilizá una corrección administrativa',
+          apiFailure(
+            ErrorCode.ATTENDANCE_ALREADY_RECORDED,
+            'La asistencia ya existe; utilizá una corrección administrativa',
+          ),
         );
       }
       if (existing?.status === AttendanceStatus.ABSENT) {
         throw new ConflictException(
-          'La clase ya fue cerrada con ausencia para la alumna',
+          apiFailure(
+            ErrorCode.ATTENDANCE_ALREADY_RECORDED,
+            'La clase ya fue cerrada con ausencia para la alumna',
+          ),
         );
       }
       if (session.status === ClassSessionStatus.CANCELLED) {
-        throw new ConflictException('La clase está cancelada');
+        throw new ConflictException(
+          apiFailure(
+            ErrorCode.ATTENDANCE_INELIGIBLE,
+            'La clase está cancelada',
+          ),
+        );
       }
       if (session.status === ClassSessionStatus.COMPLETED) {
         throw new ConflictException(
-          actor.type === 'ADMIN' && !existing
-            ? 'Anomalía de integridad: clase cerrada sin asistencia; requiere revisión administrativa'
-            : 'La asistencia de la clase ya fue cerrada',
+          apiFailure(
+            ErrorCode.ATTENDANCE_WINDOW_CLOSED,
+            actor.type === 'ADMIN' && !existing
+              ? 'Anomalía de integridad: clase cerrada sin asistencia; requiere revisión administrativa'
+              : 'La asistencia de la clase ya fue cerrada',
+          ),
         );
       }
 
       const initialWindow = this.window(session, this.clock.now());
       if (initialWindow.status !== AttendanceWindowStatus.OPEN) {
         throw new ConflictException(
-          initialWindow.status === AttendanceWindowStatus.UPCOMING
-            ? 'La ventana de asistencia todavía no abrió'
-            : 'La ventana de asistencia ya cerró',
+          apiFailure(
+            initialWindow.status === AttendanceWindowStatus.UPCOMING
+              ? ErrorCode.ATTENDANCE_TOO_EARLY
+              : ErrorCode.ATTENDANCE_WINDOW_CLOSED,
+            initialWindow.status === AttendanceWindowStatus.UPCOMING
+              ? 'La ventana de asistencia todavía no abrió'
+              : 'La ventana de asistencia ya cerró',
+          ),
         );
       }
 
@@ -167,7 +187,9 @@ export class AttendanceService {
       });
       if (!student?.isActive) {
         if (actor.type === 'ADMIN')
-          throw new ConflictException('Alumna no disponible');
+          throw new ConflictException(
+            apiFailure(ErrorCode.ATTENDANCE_INELIGIBLE, 'Alumna no disponible'),
+          );
         throw new UnauthorizedException('Alumna no disponible');
       }
 
@@ -183,7 +205,10 @@ export class AttendanceService {
       ).find((item) => item.student.id === studentId);
       if (!expected) {
         throw new ConflictException(
-          'La suscripción no habilita asistencia para esta clase',
+          apiFailure(
+            ErrorCode.ATTENDANCE_INELIGIBLE,
+            'La suscripción no habilita asistencia para esta clase',
+          ),
         );
       }
 
@@ -196,9 +221,14 @@ export class AttendanceService {
       const finalWindow = this.window(session, recordedAt);
       if (finalWindow.status !== AttendanceWindowStatus.OPEN) {
         throw new ConflictException(
-          finalWindow.status === AttendanceWindowStatus.UPCOMING
-            ? 'La ventana de asistencia todavía no abrió'
-            : 'La ventana de asistencia ya cerró',
+          apiFailure(
+            finalWindow.status === AttendanceWindowStatus.UPCOMING
+              ? ErrorCode.ATTENDANCE_TOO_EARLY
+              : ErrorCode.ATTENDANCE_WINDOW_CLOSED,
+            finalWindow.status === AttendanceWindowStatus.UPCOMING
+              ? 'La ventana de asistencia todavía no abrió'
+              : 'La ventana de asistencia ya cerró',
+          ),
         );
       }
 
@@ -225,7 +255,12 @@ export class AttendanceService {
         };
       }
       if (expected.recoveryId === null && summary.remainingClasses === 0) {
-        throw new ConflictException('La suscripción agotó sus clases');
+        throw new ConflictException(
+          apiFailure(
+            ErrorCode.ALLOWANCE_EXHAUSTED,
+            'La suscripción agotó sus clases',
+          ),
+        );
       }
       const attendance = await tx.attendance.create({
         data: {
@@ -272,7 +307,12 @@ export class AttendanceService {
       if (
         this.window(session, finishedAt).status !== AttendanceWindowStatus.OPEN
       ) {
-        throw new ConflictException('La ventana de asistencia ya cerró');
+        throw new ConflictException(
+          apiFailure(
+            ErrorCode.ATTENDANCE_WINDOW_CLOSED,
+            'La ventana de asistencia ya cerró',
+          ),
+        );
       }
       return response;
     });

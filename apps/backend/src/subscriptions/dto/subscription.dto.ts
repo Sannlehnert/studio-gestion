@@ -80,14 +80,24 @@ export class ListSubscriptionsQueryDto {
   @IsEnum(SubscriptionStatusFilter)
   status: SubscriptionStatusFilter = SubscriptionStatusFilter.ALL;
 
-  @ApiPropertyOptional({ default: 1, minimum: 1, maximum: 100000 })
+  @ApiPropertyOptional({
+    type: 'integer',
+    default: 1,
+    minimum: 1,
+    maximum: 100000,
+  })
   @Type(() => Number)
   @IsInt()
   @Min(1)
   @Max(100000)
   page = 1;
 
-  @ApiPropertyOptional({ default: 20, minimum: 1, maximum: 100 })
+  @ApiPropertyOptional({
+    type: 'integer',
+    default: 20,
+    minimum: 1,
+    maximum: 100,
+  })
   @Type(() => Number)
   @IsInt()
   @Min(1)
@@ -111,7 +121,7 @@ export class SubscriptionResponseDto {
   planId!: string;
   @ApiProperty()
   planName!: string;
-  @ApiProperty()
+  @ApiProperty({ type: 'integer' })
   classAllowance!: number;
   @ApiProperty({ type: String, example: '35000.00' })
   agreedPrice!: string;
@@ -123,7 +133,7 @@ export class SubscriptionResponseDto {
   periodEnd!: Date;
   @ApiProperty({ enum: OperationalSubscriptionStatus })
   operationalStatus!: OperationalSubscriptionStatus;
-  @ApiProperty({ format: 'date-time', nullable: true })
+  @ApiProperty({ type: String, format: 'date-time', nullable: true })
   cancelledAt!: Date | null;
   @ApiProperty({ type: SubscriptionStudentDto })
   student!: SubscriptionStudentDto;
@@ -152,13 +162,13 @@ export class SubscriptionDetailResponseDto extends SubscriptionResponseDto {
 }
 
 class PageMetaDto {
-  @ApiProperty()
+  @ApiProperty({ type: 'integer' })
   page!: number;
-  @ApiProperty()
+  @ApiProperty({ type: 'integer' })
   limit!: number;
-  @ApiProperty()
+  @ApiProperty({ type: 'integer' })
   total!: number;
-  @ApiProperty()
+  @ApiProperty({ type: 'integer' })
   totalPages!: number;
 }
 

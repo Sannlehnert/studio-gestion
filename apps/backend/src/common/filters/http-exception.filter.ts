@@ -7,11 +7,17 @@ import {
   Logger,
 } from '@nestjs/common';
 import { Request, Response } from 'express';
+import {
+  defaultErrorCode,
+  ErrorCode,
+  publicErrorCode,
+} from '../http/error-code';
 
 export function errorResponse(
   statusCode: number,
   message: string | string[],
   path: string,
+  code: ErrorCode = defaultErrorCode(statusCode),
 ) {
   const names: Record<number, string> = {
     400: 'Bad Request',
@@ -27,6 +33,7 @@ export function errorResponse(
   };
   return {
     statusCode,
+    code,
     timestamp: new Date().toISOString(),
     path: path.split('?')[0],
     error: names[statusCode] ?? 'Error',
@@ -43,9 +50,12 @@ export class AllExceptionsFilter implements ExceptionFilter {
     const request = host.switchToHttp().getRequest<Request>();
     let statusCode: number = HttpStatus.INTERNAL_SERVER_ERROR;
     let message: string | string[] = 'Error interno del servidor';
+    let code: ErrorCode | undefined;
     if (exception instanceof HttpException && exception.getStatus() < 500) {
       statusCode = exception.getStatus();
       const body: unknown = exception.getResponse();
+      if (body && typeof body === 'object' && 'code' in body)
+        code = publicErrorCode(body.code);
       if (typeof body === 'string') message = body;
       else if (body && typeof body === 'object' && 'message' in body) {
         const candidate: unknown = body.message;
@@ -86,6 +96,13 @@ export class AllExceptionsFilter implements ExceptionFilter {
     }
     response
       .status(statusCode)
-      .json(errorResponse(statusCode, message, request.originalUrl));
+      .json(
+        errorResponse(
+          statusCode,
+          message,
+          request.originalUrl,
+          statusCode === 404 ? ErrorCode.NOT_FOUND : code,
+        ),
+      );
   }
 }

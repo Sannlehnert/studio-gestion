@@ -1,3 +1,4 @@
+import { apiFailure, ErrorCode } from '../../common/http/error-code';
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { SessionRole } from '@prisma/client';
@@ -24,10 +25,14 @@ export class AdminAuthService {
     const admin = await this.prisma.admin.findUnique({ where: { email } });
     if (!admin) {
       await this.passwordService.verifyDummy(password);
-      throw new UnauthorizedException('Credenciales inválidas');
+      throw new UnauthorizedException(
+        apiFailure(ErrorCode.INVALID_CREDENTIALS, 'Credenciales inválidas'),
+      );
     }
     if (!(await this.passwordService.verify(admin.passwordHash, password))) {
-      throw new UnauthorizedException('Credenciales inválidas');
+      throw new UnauthorizedException(
+        apiFailure(ErrorCode.INVALID_CREDENTIALS, 'Credenciales inválidas'),
+      );
     }
     const { token, session } = await this.prisma.$transaction(async (tx) => {
       const created = await this.sessionService.createSession(
@@ -59,7 +64,9 @@ export class AdminAuthService {
   async validateSession(token: string) {
     const session = await this.sessionService.validateSession(token);
     if (session.role !== SessionRole.ADMIN)
-      throw new UnauthorizedException('Sesión inválida');
+      throw new UnauthorizedException(
+        apiFailure(ErrorCode.SESSION_INVALID, 'Sesión inválida'),
+      );
     return session;
   }
 

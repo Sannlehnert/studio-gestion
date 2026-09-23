@@ -15,13 +15,23 @@ import {
 } from 'class-validator';
 import { AuditActorType } from '@prisma/client';
 export class PageQueryDto {
-  @ApiPropertyOptional({ default: 1, minimum: 1, maximum: 100000 })
+  @ApiPropertyOptional({
+    type: 'integer',
+    default: 1,
+    minimum: 1,
+    maximum: 100000,
+  })
   @Type(() => Number)
   @IsInt()
   @Min(1)
   @Max(100000)
   page = 1;
-  @ApiPropertyOptional({ default: 20, minimum: 1, maximum: 100 })
+  @ApiPropertyOptional({
+    type: 'integer',
+    default: 20,
+    minimum: 1,
+    maximum: 100,
+  })
   @Type(() => Number)
   @IsInt()
   @Min(1)
@@ -71,10 +81,10 @@ export class AuditQueryDto extends PageQueryDto {
   dateTo?: string;
 }
 export class PageMetaDto {
-  @ApiProperty() page!: number;
-  @ApiProperty() limit!: number;
-  @ApiProperty() total!: number;
-  @ApiProperty() totalPages!: number;
+  @ApiProperty({ type: 'integer' }) page!: number;
+  @ApiProperty({ type: 'integer' }) limit!: number;
+  @ApiProperty({ type: 'integer' }) total!: number;
+  @ApiProperty({ type: 'integer' }) totalPages!: number;
 }
 export class AuditLogResponseDto {
   @ApiProperty({ format: 'uuid' }) id!: string;

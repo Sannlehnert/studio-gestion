@@ -1,3 +1,4 @@
+import { apiFailure, ErrorCode } from '../common/http/error-code';
 import {
   BadRequestException,
   ConflictException,
@@ -84,7 +85,10 @@ export class PaymentsService {
             replay.note !== (dto.note ?? null)
           ) {
             throw new ConflictException(
-              'La clave de idempotencia ya fue usada con otros datos',
+              apiFailure(
+                ErrorCode.PAYMENT_IDEMPOTENCY_CONFLICT,
+                'La clave de idempotencia ya fue usada con otros datos',
+              ),
             );
           }
           return replay;
@@ -101,7 +105,10 @@ export class PaymentsService {
         const remaining = subscription.agreedPrice.minus(paid);
         if (amount.greaterThan(remaining)) {
           throw new ConflictException(
-            'El pago supera el saldo pendiente de la suscripción',
+            apiFailure(
+              ErrorCode.PAYMENT_OVERPAYMENT,
+              'El pago supera el saldo pendiente de la suscripción',
+            ),
           );
         }
 
@@ -155,7 +162,10 @@ export class PaymentsService {
           return this.serialize(existing);
         }
         throw new ConflictException(
-          'La clave de idempotencia ya fue usada con otros datos',
+          apiFailure(
+            ErrorCode.PAYMENT_IDEMPOTENCY_CONFLICT,
+            'La clave de idempotencia ya fue usada con otros datos',
+          ),
         );
       }
       throw error;

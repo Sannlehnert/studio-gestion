@@ -106,3 +106,9 @@ Los FKs compuestos impiden vínculos cruzados; los índices parciales protegen d
 ## Correcciones y auditoría (Etapa 7)
 
 Los cuatro endpoints nuevos requieren Admin autenticado. POST conserva defensa CSRF/Origin, límites generales y DTOs estrictos. El cliente no elige autor, timestamp, source, contrato, recoveryId o consumo. El servidor resuelve y bloquea identidades. Historial inmutable y constraints cubren carreras; rate limiting no sostiene integridad. La consulta de auditoría proyecta metadata por acción, sin secretos. Student no accede al historial administrativo ni puede omitir QR. [Reglas](admin-corrections.md), [auditoría](operational-audit.md).
+
+## Integración frontend — Etapa 7.1
+
+Las nuevas lecturas Student derivan identidad exclusivamente de sesión; Admin requiere su guard. Home no expone finanzas y el historial público no expone motivos, actor ni metadata de correcciones/auditoría. DTOs rechazan filtros desconocidos. Paginación/rangos/candidatas están acotados. CORS conserva allowlist/credentials y mutaciones mantienen CSRF. Errores públicos no reflejan SQL, Prisma ni stacks.
+
+Contrato completo y límites: [frontend-integration-contract.md](frontend-integration-contract.md). Evidencia: [stage-7.1-validation.md](stage-7.1-validation.md).

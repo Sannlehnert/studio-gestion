@@ -9,7 +9,12 @@ import {
 } from '../attendance-domain';
 
 export class UpcomingClassSessionsQueryDto {
-  @ApiPropertyOptional({ default: 10, minimum: 1, maximum: 20 })
+  @ApiPropertyOptional({
+    type: 'integer',
+    default: 10,
+    minimum: 1,
+    maximum: 20,
+  })
   @Type(() => Number)
   @IsInt()
   @Min(1)
@@ -20,15 +25,15 @@ export class UpcomingClassSessionsQueryDto {
 export class ClassAllowanceSummaryDto {
   @ApiProperty({ format: 'uuid' })
   subscriptionId!: string;
-  @ApiProperty()
+  @ApiProperty({ type: 'integer' })
   classAllowance!: number;
-  @ApiProperty()
+  @ApiProperty({ type: 'integer' })
   usedClasses!: number;
-  @ApiProperty()
+  @ApiProperty({ type: 'integer' })
   remainingClasses!: number;
   @ApiProperty({ enum: ClassAllowanceIntegrity })
   integrityStatus!: ClassAllowanceIntegrity;
-  @ApiProperty()
+  @ApiProperty({ type: 'integer' })
   overconsumedClasses!: number;
 }
 
@@ -126,17 +131,17 @@ class AdminAttendanceStudentDto {
 }
 
 class AdminAttendanceTotalsDto {
-  @ApiProperty()
+  @ApiProperty({ type: 'integer' })
   expected!: number;
-  @ApiProperty()
+  @ApiProperty({ type: 'integer' })
   present!: number;
-  @ApiProperty()
+  @ApiProperty({ type: 'integer' })
   absent!: number;
-  @ApiProperty()
+  @ApiProperty({ type: 'integer' })
   pending!: number;
-  @ApiProperty()
+  @ApiProperty({ type: 'integer' })
   unresolved!: number;
-  @ApiProperty()
+  @ApiProperty({ type: 'integer' })
   notRequiredInactive!: number;
 }
 

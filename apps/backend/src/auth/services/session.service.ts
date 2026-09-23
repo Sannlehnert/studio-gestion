@@ -1,3 +1,4 @@
+import { apiFailure, ErrorCode } from '../../common/http/error-code';
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { PrismaService } from '../../prisma.service';
 import { TokenService } from './token.service';
@@ -45,16 +46,22 @@ export class SessionService {
     });
 
     if (!session) {
-      throw new UnauthorizedException('Sesión no encontrada');
+      throw new UnauthorizedException(
+        apiFailure(ErrorCode.SESSION_INVALID, 'Sesión no encontrada'),
+      );
     }
 
     if (session.revokedAt) {
-      throw new UnauthorizedException('Sesión revocada');
+      throw new UnauthorizedException(
+        apiFailure(ErrorCode.SESSION_INVALID, 'Sesión revocada'),
+      );
     }
 
     const now = new Date();
     if (session.expiresAt <= now) {
-      throw new UnauthorizedException('Sesión expirada');
+      throw new UnauthorizedException(
+        apiFailure(ErrorCode.SESSION_INVALID, 'Sesión expirada'),
+      );
     }
 
     const touched = await this.prisma.session.updateMany({
@@ -64,7 +71,9 @@ export class SessionService {
 
     // A database lock wait must not extend the session's absolute lifetime.
     if (touched.count !== 1 || session.expiresAt <= new Date()) {
-      throw new UnauthorizedException('Sesión inválida');
+      throw new UnauthorizedException(
+        apiFailure(ErrorCode.SESSION_INVALID, 'Sesión inválida'),
+      );
     }
 
     return session;

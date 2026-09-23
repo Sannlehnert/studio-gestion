@@ -1,3 +1,4 @@
+import { ApiErrorDto } from '../common/http/error-response.dto';
 import {
   Body,
   Controller,
@@ -41,7 +42,11 @@ export class AdminSubscriptionsController {
   @Post()
   @ApiOperation({ summary: 'Crear una suscripción con snapshot contractual' })
   @ApiResponse({ status: 201, type: SubscriptionResponseDto })
-  @ApiResponse({ status: 409, description: 'Estado u período incompatible' })
+  @ApiResponse({
+    type: ApiErrorDto,
+    status: 409,
+    description: 'Estado u período incompatible',
+  })
   create(
     @Body() dto: CreateSubscriptionDto,
     @CurrentUser() actor: AuthenticatedUser,

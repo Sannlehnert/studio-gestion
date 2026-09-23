@@ -1,4 +1,5 @@
 import { AuditModule } from './audit/audit.module';
+import { IntegrationReadsModule } from './integration-reads/integration-reads.module';
 import { RecoveriesModule } from './recoveries/recoveries.module';
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
@@ -38,6 +39,7 @@ import { AttendanceModule } from './attendance/attendance.module';
     AttendanceModule,
     RecoveriesModule,
     AuditModule,
+    IntegrationReadsModule,
   ],
   controllers: [HealthController],
 })

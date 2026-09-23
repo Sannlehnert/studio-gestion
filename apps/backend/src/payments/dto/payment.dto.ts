@@ -84,14 +84,24 @@ export class ListPaymentsQueryDto {
   @IsEnum(PaymentStatusFilter)
   status: PaymentStatusFilter = PaymentStatusFilter.ALL;
 
-  @ApiPropertyOptional({ default: 1, minimum: 1, maximum: 100000 })
+  @ApiPropertyOptional({
+    type: 'integer',
+    default: 1,
+    minimum: 1,
+    maximum: 100000,
+  })
   @Type(() => Number)
   @IsInt()
   @Min(1)
   @Max(100000)
   page = 1;
 
-  @ApiPropertyOptional({ default: 20, minimum: 1, maximum: 100 })
+  @ApiPropertyOptional({
+    type: 'integer',
+    default: 20,
+    minimum: 1,
+    maximum: 100,
+  })
   @Type(() => Number)
   @IsInt()
   @Min(1)
@@ -106,7 +116,7 @@ export class PaymentResponseDto {
   subscriptionId!: string;
   @ApiProperty({ format: 'uuid' })
   createdByAdminId!: string;
-  @ApiProperty({ format: 'uuid', nullable: true })
+  @ApiProperty({ type: String, format: 'uuid', nullable: true })
   voidedByAdminId!: string | null;
   @ApiProperty({ type: String, example: '20000.00' })
   amount!: string;
@@ -118,11 +128,11 @@ export class PaymentResponseDto {
   paidAt!: Date;
   @ApiProperty({ enum: PaymentMethod, nullable: true })
   method!: PaymentMethod | null;
-  @ApiProperty({ nullable: true })
+  @ApiProperty({ type: String, nullable: true })
   note!: string | null;
-  @ApiProperty({ format: 'date-time', nullable: true })
+  @ApiProperty({ type: String, format: 'date-time', nullable: true })
   voidedAt!: Date | null;
-  @ApiProperty({ nullable: true })
+  @ApiProperty({ type: String, nullable: true })
   voidReason!: string | null;
   @ApiProperty({ format: 'date-time' })
   createdAt!: Date;
@@ -131,13 +141,13 @@ export class PaymentResponseDto {
 }
 
 class PageMetaDto {
-  @ApiProperty()
+  @ApiProperty({ type: 'integer' })
   page!: number;
-  @ApiProperty()
+  @ApiProperty({ type: 'integer' })
   limit!: number;
-  @ApiProperty()
+  @ApiProperty({ type: 'integer' })
   total!: number;
-  @ApiProperty()
+  @ApiProperty({ type: 'integer' })
   totalPages!: number;
 }
 

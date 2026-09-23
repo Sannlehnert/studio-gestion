@@ -2,6 +2,8 @@ import { Injectable } from '@nestjs/common';
 import { Prisma, ClassSessionStatus } from '@prisma/client';
 import { PrismaService } from '../prisma.service';
 import { StudentStatusHistoryService } from '../students/student-status-history.service';
+import { wasActiveAt } from '../students/student-status-history';
+import { subscriptionCoversRecovery } from '../recoveries/recovery-domain';
 
 export type ParticipationSession = {
   id: string;
@@ -125,10 +127,119 @@ export class ClassParticipationService {
     client: Prisma.TransactionClient,
     session: ParticipationSession & { status: ClassSessionStatus },
   ) {
-    if (session.status === ClassSessionStatus.CANCELLED)
-      return new Set<string>();
-    const normal = await this.normal(client, session, false);
-    const recovery = await this.recoveries(client, session, false);
-    return new Set([...normal, ...recovery].map((row) => row.student.id));
+    return new Set(
+      (await this.forSessions(client, [session], false))
+        .get(session.id)
+        ?.map((row) => row.student.id),
+    );
+  }
+
+  /** Bounded batch read shared with capacity mutations. Inactivity never releases reservations. */
+  async forSessions(
+    client: Prisma.TransactionClient,
+    sessions: (ParticipationSession & { status: ClassSessionStatus })[],
+    historical: boolean,
+    studentId?: string,
+  ): Promise<Map<string, Participation[]>> {
+    const result = new Map<string, Participation[]>(
+      sessions.map((s) => [s.id, []]),
+    );
+    const active = sessions.filter((s) => s.status !== 'CANCELLED');
+    if (!active.length) return result;
+    const student = {
+      select: {
+        id: true,
+        fullName: true,
+        activePeriods: { select: { validFrom: true, validUntil: true } },
+      },
+    } as const;
+    const subscription = {
+      select: {
+        status: true,
+        periodStart: true,
+        periodEnd: true,
+        cancelledAt: true,
+      },
+    } as const;
+    const normal = await client.enrollment.findMany({
+      where: {
+        ...(studentId ? { studentId } : {}),
+        OR: active.map((s) => ({
+          scheduleId: s.scheduleId,
+          validFrom: { lte: s.occurrenceDate },
+          validUntil: { gt: s.occurrenceDate },
+        })),
+      },
+      select: {
+        id: true,
+        scheduleId: true,
+        validFrom: true,
+        validUntil: true,
+        subscriptionId: true,
+        subscription,
+        student,
+      },
+      orderBy: { id: 'asc' },
+    });
+    const recoveries = await client.recovery.findMany({
+      where: {
+        ...(studentId ? { studentId } : {}),
+        recoverySessionId: { in: active.map((s) => s.id) },
+        cancelledAt: null,
+      },
+      select: {
+        id: true,
+        recoverySessionId: true,
+        subscriptionId: true,
+        subscription,
+        student,
+      },
+      orderBy: { id: 'asc' },
+    });
+    for (const s of active) {
+      const byStudent = new Map<string, Participation>();
+      for (const row of normal) {
+        if (
+          row.scheduleId !== s.scheduleId ||
+          row.validFrom > s.occurrenceDate ||
+          row.validUntil <= s.occurrenceDate ||
+          !subscriptionCoversRecovery(row.subscription, s.startAt) ||
+          (historical && !wasActiveAt(row.student.activePeriods, s.startAt))
+        )
+          continue;
+        byStudent.set(row.student.id, {
+          enrollmentId: row.id,
+          recoveryId: null,
+          origin: ParticipationOrigin.ENROLLMENT,
+          subscriptionId: row.subscriptionId,
+          student: { id: row.student.id, fullName: row.student.fullName },
+        });
+      }
+      for (const row of recoveries) {
+        if (
+          row.recoverySessionId !== s.id ||
+          byStudent.has(row.student.id) ||
+          !subscriptionCoversRecovery(row.subscription, s.startAt) ||
+          (historical && !wasActiveAt(row.student.activePeriods, s.startAt))
+        )
+          continue;
+        byStudent.set(row.student.id, {
+          enrollmentId: null,
+          recoveryId: row.id,
+          origin: ParticipationOrigin.RECOVERY,
+          subscriptionId: row.subscriptionId,
+          student: { id: row.student.id, fullName: row.student.fullName },
+        });
+      }
+      result.set(
+        s.id,
+        [...byStudent.values()].sort(
+          (a, b) =>
+            a.student.fullName.localeCompare(b.student.fullName) ||
+            a.student.id.localeCompare(b.student.id),
+        ),
+      );
+    }
+    return result;
   }
 }

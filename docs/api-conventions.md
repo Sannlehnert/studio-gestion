@@ -155,3 +155,9 @@ Todas las rutas requieren sesión Admin. POST exige Origin/Referer permitido y J
 | GET | /admin/audit-logs | filtros actor/entidad/acción/fechas; items y meta; fecha DESC, id DESC |
 
 Motivo trim 3–500. No se aceptan campos de identidad, fuente, consumo o tiempo por body. Attendance incluye originalStatus; source incluye ADMIN y representa origen, no el autor de la última corrección. [Semántica](admin-corrections.md), [filtros y metadata](operational-audit.md).
+
+## Integración frontend — Etapa 7.1
+
+ApiError agrega code estable y conserva message/error/statusCode/timestamp/path. CORS admite Content-Type e Idempotency-Key explícitos. Nuevos históricos/opciones usan page/limit e items/meta; today=true usa BusinessTime y no admite dateFrom/dateTo. OpenAPI tipa enteros, enums, fechas civiles, instantes, nullables y dinero string.
+
+Contrato completo y límites: [frontend-integration-contract.md](frontend-integration-contract.md). Evidencia: [stage-7.1-validation.md](stage-7.1-validation.md).

@@ -82,3 +82,9 @@ Attendance.recoveryId nullable distingue el consumo sin counters ni flags persis
 ## Correcciones y asistencia manual
 
 Etapa 7 mantiene originalStatus/source/recordedAt inmutables. Sólo Admin puede crear PRESENT manual durante la ventana o corregir un estado persistido con motivo. La corrección no cambia consumo ni depende de la ventana. Registro inexistente en clase cerrada es anomalía; no se inventa histórico. SYSTEM se registra explícitamente como actorType, con actorId null. [Reglas completas](admin-corrections.md).
+
+## Integración frontend — Etapa 7.1
+
+GET /student/attendance-history y GET /admin/students/:studentId/attendance-history leen Attendance persistida, ordenada y paginada. effectiveStatus es el estado efectivo; participationKind distingue REGULAR/RECOVERY. corrected depende de existencia de AttendanceCorrection, incluso si el resultado volvió al original. No se expone source técnico ni motivo/actor de corrección en esa proyección.
+
+Contrato completo y límites: [frontend-integration-contract.md](frontend-integration-contract.md). Evidencia: [stage-7.1-validation.md](stage-7.1-validation.md).

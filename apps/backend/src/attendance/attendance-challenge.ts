@@ -1,3 +1,4 @@
+import { apiFailure, ErrorCode } from '../common/http/error-code';
 import { BadRequestException, ConflictException } from '@nestjs/common';
 import { ClassSessionStatus } from '@prisma/client';
 import { attendanceWindow, AttendanceWindowStatus } from './attendance-domain';
@@ -6,7 +7,12 @@ export const CHALLENGE_PATTERN = /^sgq_[A-Za-z0-9_-]{43}$/;
 
 export function assertChallengeFormat(value: unknown): asserts value is string {
   if (typeof value !== 'string' || !CHALLENGE_PATTERN.test(value)) {
-    throw new BadRequestException('Formato de challenge inválido');
+    throw new BadRequestException(
+      apiFailure(
+        ErrorCode.ATTENDANCE_QR_INVALID,
+        'Formato de challenge inválido',
+      ),
+    );
   }
 }
 
@@ -25,7 +31,12 @@ export function assertChallengeValid(
     challenge.revokedAt !== null ||
     challenge.expiresAt <= now
   ) {
-    throw new ConflictException('Challenge no válido; escaneá el QR actual');
+    throw new ConflictException(
+      apiFailure(
+        ErrorCode.ATTENDANCE_QR_INVALID,
+        'Challenge no válido; escaneá el QR actual',
+      ),
+    );
   }
 }
 
@@ -41,7 +52,14 @@ export function assertAttendanceOpen(
     window.status !== AttendanceWindowStatus.OPEN
   ) {
     throw new ConflictException(
-      'La clase no admite asistencia en este momento',
+      apiFailure(
+        window.status === AttendanceWindowStatus.UPCOMING
+          ? ErrorCode.ATTENDANCE_TOO_EARLY
+          : window.status === AttendanceWindowStatus.CLOSED
+            ? ErrorCode.ATTENDANCE_WINDOW_CLOSED
+            : ErrorCode.ATTENDANCE_INELIGIBLE,
+        'La clase no admite asistencia en este momento',
+      ),
     );
   }
   return window;

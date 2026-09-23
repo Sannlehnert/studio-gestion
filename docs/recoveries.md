@@ -102,3 +102,9 @@ Límites existentes: una instancia con contadores de rate limit en memoria; back
 ## Correcciones (Etapa 7)
 
 Origen sin Recovery no cancelada: ABSENT→PRESENT permitido. Pendiente: cancelar primero explícitamente. Con resultado: bloquear origen incluso si el resultado es ABSENT. Las canceladas se conservan y no bloquean. El resultado Recovery admite PRESENT↔ABSENT; estado operativo derivado y consumo cero. Admin manual usa el mismo destino/elegibilidad/ventana, source ADMIN y recoveryId real, sin QR ni doble consumo. Autorizar relee el origen después del lock Student para controlar la carrera con Correction. [Detalles](admin-corrections.md).
+
+## Integración frontend — Etapa 7.1
+
+GET /admin/attendances/:attendanceId/recovery-options filtra destinos válidos y calcula occupied por la unión real de reservas habituales/Recovery, deduplicada por Student. Comparte el cálculo en lote con reservations. La inactividad actual no libera reservas. available se limita a cero; availabilityAsOf es una fotografía. GET no reserva: POST revalida bajo locks y devuelve 409 CLASS_SESSION_FULL si se agotó el cupo.
+
+Contrato completo y límites: [frontend-integration-contract.md](frontend-integration-contract.md). Evidencia: [stage-7.1-validation.md](stage-7.1-validation.md).

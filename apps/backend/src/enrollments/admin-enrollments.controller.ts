@@ -1,3 +1,4 @@
+import { ApiErrorDto } from '../common/http/error-response.dto';
 import {
   Body,
   Controller,
@@ -42,6 +43,7 @@ export class AdminEnrollmentsController {
   @ApiOperation({ summary: 'Inscribir una alumna en un horario por vigencia' })
   @ApiResponse({ status: 201, type: EnrollmentResponseDto })
   @ApiResponse({
+    type: ApiErrorDto,
     status: 409,
     description: 'Vigencia, cupo o relación inválida',
   })

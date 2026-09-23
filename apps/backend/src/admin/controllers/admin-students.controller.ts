@@ -1,3 +1,4 @@
+import { ApiErrorDto } from '../../common/http/error-response.dto';
 import {
   Body,
   Controller,
@@ -35,8 +36,16 @@ export class AdminStudentsController {
   @ApiOperation({ summary: 'Generar un acceso independiente para una alumna' })
   @ApiParam({ name: 'studentId', format: 'uuid' })
   @ApiResponse({ status: 201, type: AccessResponseDto })
-  @ApiResponse({ status: 404, description: 'Alumna no encontrada' })
-  @ApiResponse({ status: 409, description: 'Alumna desactivada' })
+  @ApiResponse({
+    type: ApiErrorDto,
+    status: 404,
+    description: 'Alumna no encontrada',
+  })
+  @ApiResponse({
+    type: ApiErrorDto,
+    status: 409,
+    description: 'Alumna desactivada',
+  })
   async createAccess(
     @Param('studentId', ParseUUIDPipe) studentId: string,
     @Body() dto: CreateStudentAccessDto,
@@ -55,10 +64,12 @@ export class AdminStudentsController {
   @ApiParam({ name: 'accessId', format: 'uuid' })
   @ApiResponse({ status: 204, description: 'Acceso revocado' })
   @ApiResponse({
+    type: ApiErrorDto,
     status: 404,
     description: 'Acceso no encontrado para esta alumna',
   })
   @ApiResponse({
+    type: ApiErrorDto,
     status: 409,
     description: 'Acceso ya activado; no revoca su sesión',
   })

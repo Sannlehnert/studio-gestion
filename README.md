@@ -146,3 +146,7 @@ El núcleo funcional del backend está cerrado hasta Etapa 7. Próximo paso suje
 - [Validación final](docs/stage-7-validation.md)
 
 Desde la raíz: `npm --workspace apps/backend run test:migration:corrections` verifica fresh, upgrade 6→7 y guardias de atribución histórica en schemas efímeros de la base *_test. No usa la DB de desarrollo. `npm --workspace apps/backend run test:e2e` incluye integración PostgreSQL, concurrencia y HTTP. `npm --workspace apps/backend audit` incluye dependencias de desarrollo.
+
+## Integración frontend
+
+Ver [contrato Etapa 7.1](docs/frontend-integration-contract.md), [validación](docs/stage-7.1-validation.md) y [brechas de F0](docs/frontend/backend-contract-map.md). Frontend F1 no está iniciado.

@@ -1,3 +1,4 @@
+import { apiFailure, ErrorCode } from '../common/http/error-code';
 import { ClassParticipationService } from '../class-sessions/class-participation.service';
 import {
   BadRequestException,
@@ -520,7 +521,12 @@ export class EnrollmentsService {
       maximumConcurrentEnrollments([...existing, { validFrom, validUntil }]) >
       schedule.defaultCapacity
     ) {
-      throw new ConflictException('El horario no tiene cupo disponible');
+      throw new ConflictException(
+        apiFailure(
+          ErrorCode.CAPACITY_CONFLICT,
+          'El horario no tiene cupo disponible',
+        ),
+      );
     }
 
     const sessions = await tx.classSession.findMany({
@@ -555,7 +561,10 @@ export class EnrollmentsService {
       occupied.add(studentId);
       if (occupied.size > session.capacity)
         throw new ConflictException(
-          'Una clase ya generada no tiene cupo para toda la vigencia',
+          apiFailure(
+            ErrorCode.CAPACITY_CONFLICT,
+            'Una clase ya generada no tiene cupo para toda la vigencia',
+          ),
         );
     }
   }

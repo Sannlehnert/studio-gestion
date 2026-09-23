@@ -52,3 +52,9 @@ No avanzar de etapa automáticamente. Cualquier etapa necesita lint, typecheck, 
 ## Correcciones administrativas
 
 Attendance conserva originalStatus/source/recordedAt; status es su proyección efectiva corregible. Historial estructurado y auditoría comparten transacción. Recovery cancelada no bloquea corregir el origen; con resultado lo bloquea. Ver [correcciones](admin-corrections.md) y [auditoría](operational-audit.md). BACKEND FUNCTIONAL CORE = COMPLETE para el alcance funcional acordado hasta Etapa 7; esto no certifica preparación de producción. Frontend requiere un nuevo prompt.
+
+## Integración frontend — Etapa 7.1
+
+Etapa 7.1 agrega seis lecturas para integración frontend, códigos de error estables y CORS para Idempotency-Key. CURRENT/UPCOMING/NONE describe selección contractual, separado del status persistido. Auth/me conserva identidad. No cambia schema ni reglas del dominio; Frontend F1 requiere el próximo prompt.
+
+Contrato completo y límites: [frontend-integration-contract.md](frontend-integration-contract.md). Evidencia: [stage-7.1-validation.md](stage-7.1-validation.md).
